@@ -1,1 +1,1 @@
-/net/home/khan/nvmain/Endurance/Distributions/Normal.cpp
+/home/naren/hitesh_research/RTSim/Endurance/Distributions/Normal.cpp
