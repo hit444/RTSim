@@ -142,6 +142,8 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
                     operation = READ;
                 else if( field == "W" )
                     operation = WRITE;
+                else if( field == "P" )
+                    operation = PIMOP;
                 else
                     std::cout << "Warning: Unknown operation `" 
                         << field << "'" << std::endl;
