@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/nvmain.debug",
-            "args": ["${workspaceFolder}/Config/RM.config", "${workspaceFolder}/Tests/Traces/hello_world.nvt", "0"],
+            "args": ["${workspaceFolder}/Config/RM.config", "${workspaceFolder}/Tests/Traces/hello_world_2.nvt", "0"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
