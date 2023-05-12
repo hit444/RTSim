@@ -236,7 +236,7 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
 
     linenum++;
 
-    if( operation != READ && operation != WRITE )
+    if( operation != READ && operation != WRITE && operation != PIMOP)
         std::cout << "NVMainTraceReader: Unknown Operation: " << operation 
             << "Line number is " << linenum << ". Full Line is \"" << fullLine 
             << "\"" << std::endl;

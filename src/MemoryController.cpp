@@ -913,7 +913,7 @@ unsigned int MemoryController::GetID( )
 NVMainRequest *MemoryController::MakeCachedRequest( NVMainRequest *triggerRequest )
 {
     /* This method should be called on *transaction* queue requests, thus only READ/WRITE possible. */
-    assert( triggerRequest->type == READ || triggerRequest->type == WRITE );
+    assert( triggerRequest->type == READ || triggerRequest->type == WRITE || triggerRequest->type == PIMOP );
 
     NVMainRequest *cachedRequest = new NVMainRequest( );
 
