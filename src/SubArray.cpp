@@ -577,6 +577,50 @@ bool SubArray::Read( NVMainRequest *request )
 }
 
 /*
+ * Clone() fulfills the row clone function
+ */
+bool SubArray::Clone( NVMainRequest *request )
+{
+    std::cout<<"Clone function called"<<std::endl;
+    
+    std::cout<<"First doing a read"<<std::endl;
+    bool readReturn = Read( request );
+    if(!readReturn)
+    {
+        std::cout<<"Read failed"<<std::endl;
+        return false;
+    }
+    else
+    {
+        std::cout<<"Read done"<<std::endl;
+    }
+
+    // Create a new request with the data we just read
+    NVMainRequest *writeRequest = new NVMainRequest( );
+    *writeRequest = *request;
+    writeRequest->type = WRITE;
+    writeRequest->owner = this;
+    writeRequest->data = request->data;
+    
+    std::cout<<"Now doing a write"<<std::endl;
+    bool writeReturn = Write( writeRequest );
+    if(!writeReturn)
+    {
+        std::cout<<"Write failed"<<std::endl;
+        return false;
+    }
+    else
+    {
+        std::cout<<"Write done"<<std::endl;
+    }
+
+    // Clone is done
+    std::cout<<"Clone done"<<std::endl;
+    
+    return true;
+}
+
+/*
  * Write() fulfills the column write function
  */
 bool SubArray::Write( NVMainRequest *request )

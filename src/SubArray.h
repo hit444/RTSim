@@ -94,6 +94,7 @@ class SubArray : public NVMObject
 
     bool Activate( NVMainRequest *request );
     bool Read( NVMainRequest *request );
+    bool Clone( NVMainRequest *request );
     bool Write( NVMainRequest *request );
     bool Shift( NVMainRequest *request );
     bool Precharge( NVMainRequest *request );
