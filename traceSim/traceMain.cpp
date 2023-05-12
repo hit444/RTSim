@@ -243,7 +243,7 @@ int TraceMain::RunTrace( int argc, char *argv[] )
             tl->SetLine( tl->GetAddress( ), tl->GetOperation( ), 0, 
                          tl->GetData( ), tl->GetOldData( ), tl->GetThreadId( ) );
 
-        if( request->type != READ && request->type != WRITE )
+        if( request->type != READ && request->type != WRITE && request->type != PIMOP)
             std::cout << "traceMain: Unknown Operation: " << request->type 
                 << std::endl;
 
