@@ -1488,6 +1488,9 @@ bool SubArray::IssueCommand( NVMainRequest *req )
             case READ_PRECHARGE:
                 rv = this->Read( req );
                 break;
+            case PIMOP:
+                rv = this->Clone( req );
+                break;
             
             case WRITE:
             case WRITE_PRECHARGE:
