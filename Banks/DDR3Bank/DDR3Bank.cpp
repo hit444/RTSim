@@ -475,12 +475,94 @@ bool DDR3Bank::Read( NVMainRequest *request )
     return success;
 }
 
+bool DDR3Bank::ReadClone( NVMainRequest *request )
+{
+    /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
+    /* sanity check */
+    if( nextRead > GetEventQueue()->GetCurrentCycle() )
+    {
+        std::cerr << "NVMain Error: Bank violates READ timing constraint!"
+            << std::endl;
+        return false;
+    }
+    else if( state != DDR3BANK_OPEN )
+    {
+        std::cerr << "NVMain Error: try to read a bank that is not active!"
+            << std::endl;
+        return false;
+    }
+
+    uint64_t readRow, readSubArray;
+    request->address.GetTranslatedAddress( &readRow, NULL, NULL, NULL, NULL, &readSubArray );
+
+    /* Update timing constraints */
+    if( request->type == READ_PRECHARGE || request->type == PIMOP )
+    {
+        nextPowerDown = MAX( nextPowerDown, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                                 + p->tAL + p->tRTP + p->tRP );
+    }
+    else
+    {
+        nextPowerDown = MAX( nextPowerDown, 
+                             MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + GetEventQueue()->GetCurrentCycle() + p->tRDPDEN );
+    }
+
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                        + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle()
+                         + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                         + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
+
+    /* issue READ/READ_RECHARGE to the target subarray */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    if( success )
+    {
+        if( request->type == READ_PRECHARGE )
+        {
+            precharges++;
+
+            std::deque<ncounter_t>::iterator it;
+            for( it = activeSubArrayQueue.begin(); 
+                    it != activeSubArrayQueue.end(); ++it )
+            {
+                if( (*it) == readSubArray )
+                {
+                    /* delete the item in the active subarray list */
+                    activeSubArrayQueue.erase( it );
+                    break;
+                }
+            }
+
+            if( activeSubArrayQueue.empty() )
+                state = DDR3BANK_CLOSED;
+        } // if( request->type == READ_PRECHARGE )
+
+        dataCycles += p->tBURST;
+        reads++;
+    } // if( succsss )
+    else
+    {
+        std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+            << "read the subarray " << readSubArray << std::endl;
+    }
+
+    return success;
+}
+
+
 bool DDR3Bank::Clone( NVMainRequest *request )
 {
     std::cout<<"Clone function called in DDR3 bank"<<std::endl;
     
     std::cout<<"First doing a read in DDR3 Bank"<<std::endl;
-    bool readReturn = Read( request );
+    bool readReturn = ReadClone( request );
     if(!readReturn)
     {
         std::cout<<"Read failed in DDR3 bank"<<std::endl;
@@ -831,7 +913,7 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
     // Add one more else if for req->type == PIMOP
     else if( req->type == PIMOP )
     {
-        if( nextClone > (GetEventQueue()->GetCurrentCycle()) 
+        if( nextRead > (GetEventQueue()->GetCurrentCycle()) 
             || state != DDR3BANK_OPEN  )
         {
             rv = false;

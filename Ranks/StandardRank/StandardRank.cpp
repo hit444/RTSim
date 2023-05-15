@@ -366,12 +366,67 @@ bool StandardRank::Read( NVMainRequest *request )
     return success;
 }
 
+bool StandardRank::ReadClone( NVMainRequest *request )
+{
+    uint64_t readBank;
+
+    request->address.GetTranslatedAddress( NULL, NULL, &readBank, NULL, NULL, NULL );
+
+    if( readBank >= bankCount )
+    {
+        std::cerr << "NVMain Error: Rank attempted to read non-existant bank: " 
+            << readBank << "!" << std::endl;
+        return false;
+    }
+
+    if( nextRead > GetEventQueue()->GetCurrentCycle() )
+    {
+        std::cerr << "NVMain Error: Rank Read violates the timing constraint: " 
+            << readBank << "!" << std::endl;
+        return false;
+    }
+
+    /* issue READ or READ_PRECHARGE to target bank */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    /* Even though the command may be READ_PRECHARGE, it still works */
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                    + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                     + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                     + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
+
+    /* if it has implicit precharge, insert the precharge to close the rank */ 
+    if( request->type == READ_PRECHARGE || request->type == PIMOP )
+    {
+        NVMainRequest* dupPRE = new NVMainRequest;
+        dupPRE->type = PRECHARGE;
+        dupPRE->owner = this;
+
+        GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
+            MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+            + GetEventQueue( )->GetCurrentCycle( ) + p->tAL + p->tRTP );
+    }
+
+    if( success == false )
+    {
+        std::cerr << "NVMain Error: Rank Read FAILED! Did you check IsIssuable?" 
+            << std::endl;
+    }
+
+    return success;
+}
+
+
 bool StandardRank::Clone( NVMainRequest *request )
 {
     std::cout<<"Clone function called in Standard rank"<<std::endl;
     
     std::cout<<"First doing a read in Standard Rank"<<std::endl;
-    bool readReturn = Read( request );
+    bool readReturn = ReadClone( request );
     if(!readReturn)
     {
         std::cout<<"Read failed in Standard Rank"<<std::endl;
@@ -381,19 +436,19 @@ bool StandardRank::Clone( NVMainRequest *request )
     {
         std::cout<<"Read done in Standard Rank"<<std::endl;
 
-        std::cout<<"Now doing a write in Standard Rank"<<std::endl;
+        // std::cout<<"Now doing a write in Standard Rank"<<std::endl;
 
-        bool writeReturn = Write( request );
+        // bool writeReturn = Write( request );
 
-        if(!writeReturn)
-        {
-            std::cout<<"Write failed in Standard Rank"<<std::endl;
-            return false;
-        }
-        else
-        {
-            std::cout<<"Write done in Standard Rank"<<std::endl;
-        }
+        // if(!writeReturn)
+        // {
+        //     std::cout<<"Write failed in Standard Rank"<<std::endl;
+        //     return false;
+        // }
+        // else
+        // {
+        //     std::cout<<"Write done in Standard Rank"<<std::endl;
+        // }
     }
 
     // // Create a new request with the data we just read
@@ -766,9 +821,9 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
         }
     }
 
-     else if( req->type == PIMOP || req->type == READ_PRECHARGE )
+     else if( req->type == PIMOP )
     {
-        if( nextClone > GetEventQueue( )->GetCurrentCycle( ) )
+        if( nextRead > GetEventQueue( )->GetCurrentCycle( ) )
         {
             rv = false;
 

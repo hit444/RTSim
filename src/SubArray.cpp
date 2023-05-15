@@ -576,6 +576,159 @@ bool SubArray::Read( NVMainRequest *request )
     return true;
 }
 
+bool SubArray::ReadClone( NVMainRequest *request )
+{
+    uint64_t readDBC, readDomain;
+
+    request->address.GetTranslatedAddress( &readDBC, &readDomain, NULL, NULL, NULL, NULL );
+
+    /* Check if we need to cancel or pause a write to service this request. */
+    CheckWritePausing( );
+
+    /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
+    /* sanity check */
+    if( nextRead > GetEventQueue()->GetCurrentCycle() )
+    {
+        std::cerr << "NVMain Error: Subarray violates READ timing constraint!"
+            << std::endl;
+        return false;
+    }
+    else if( state != SUBARRAY_OPEN )
+    {
+        std::cerr << "NVMain Error: try to read a subarray that is not active!"
+            << std::endl;
+        return false;
+    }
+    else if( readDBC != openRow )
+    {
+        std::cerr << "NVMain Error: try to read a row that is not opened in a subarray!"
+            << std::endl;
+        return false;
+    }
+    
+    /************************ONLY FOR RTM***************************
+     * Before accessing the subarray, perform the shifting operation
+     * to align port position to the requested data and incur 
+     * latency and energy !.
+     ***************************************************************/
+    
+//     if( !Shift( readDBC, readDomain ) )
+//         std::cout<<"Subarray: Shift function has returned error. !!"<<std::endl;
+    
+    /* Any additional latency for data encoding. */
+    ncycles_t decLat = (dataEncoder ? dataEncoder->Read( request ) : 0);
+
+    /* Update timing constraints */
+    if( request->type == READ_PRECHARGE || request->type == PIMOP )
+    {
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle()
+                                + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                                + p->tAL + p->tRTP + p->tRP + decLat );
+
+        nextPrecharge = MAX( nextPrecharge, nextActivate );
+        nextRead = MAX( nextRead, nextActivate );
+        nextWrite = MAX( nextWrite, nextActivate );
+
+        NVMainRequest *preReq = new NVMainRequest( );
+        *preReq = *request;
+        preReq->owner = this;
+
+        /* insert the event to issue the implicit precharge */ 
+        GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
+                        GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP + decLat
+                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1) );
+    }
+    else
+    {
+        nextPrecharge = MAX( nextPrecharge, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                                 + p->tAL + p->tBURST + p->tRTP - p->tCCD + decLat );
+
+        nextRead = MAX( nextRead, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
+                             + p->tCAS + p->tBURST + p->tRTRS - p->tCWD + decLat );
+    }
+
+    /* Read->Powerdown is typical the same for READ and READ_PRECHARGE. */
+    nextPowerDown = MAX( nextPowerDown,
+                         GetEventQueue()->GetCurrentCycle()
+                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
+                            + p->tCAS + p->tAL + p->tBURST + 1 + decLat );
+
+    /*
+     *  Data is placed on the bus starting from tCAS and is complete after tBURST.
+     *  Wakeup owner at the end of this to notify that the whole request is complete.
+     *
+     *  Note: In critical word first, tBURST can be replaced with 1.
+     */
+    /* Issue a bus burst request when the burst starts. */
+    NVMainRequest *busReq = new NVMainRequest( );
+    *busReq = *request;
+    busReq->type = BUS_WRITE;
+    busReq->owner = this;
+
+    GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
+            GetEventQueue()->GetCurrentCycle() + p->tCAS + decLat );
+
+    /* Notify owner of read completion as well */
+    GetEventQueue( )->InsertEvent( EventResponse, this, request, 
+            GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST + decLat );
+
+
+    /* Calculate energy */
+    if( p->EnergyModel == "current" )
+    {
+        /* DRAM Model */
+        subArrayEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+
+        burstEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+    }
+    else
+    {
+        /* Flat Energy Model */
+        subArrayEnergy += p->Eopenrd;
+
+        burstEnergy += p->Eopenrd;
+    }
+
+    /*
+     *  There's no reason to track data if endurance is not modeled.
+     */
+    if( conf->GetSimInterface( ) != NULL && endrModel != NULL )
+    {
+        /*
+         *  In a trace-based simulation, or a live simulation where simulation is
+         *  started in the middle of execution, some data being read maybe have never
+         *  been written to memory. In this case, we will store the value, since the
+         *  data is always correct from either the simulator or the value in the trace,
+         *  which corresponds to the actual value that was read. 
+         *
+         *  Since the read data is already in the request, we don't actually need to
+         *  copy it there.
+         */
+        if( !conf->GetSimInterface( )->GetDataAtAddress( 
+                    request->address.GetPhysicalAddress( ), NULL ) )
+        {
+            conf->GetSimInterface( )->SetDataAtAddress( 
+                    request->address.GetPhysicalAddress( ), request->data );
+        }
+    }
+
+    reads++;
+    dataCycles += p->tBURST;
+    
+    return true;
+}
+
+
+
 /*
  * Clone() fulfills the row clone function
  */
@@ -585,7 +738,7 @@ bool SubArray::Clone( NVMainRequest *request )
     
     std::cout<<"First doing a read in Subarray"<<std::endl;
 
-    bool readReturn = Read( request );
+    bool readReturn = ReadClone( request );
     if(!readReturn)
     {
         std::cout<<"Read failed in Subarray"<<std::endl;
@@ -1414,7 +1567,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     // Add one more else if for req->type == PIMOP
     else if( req->type == PIMOP )
     {
-        if( nextClone > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
+        if( nextRead > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
             || state != SUBARRAY_OPEN  /* or, the subarray is not active */
             || opRow != openRow        /* or, the target row is not the open row */
             || ( p->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED ) ) /* or, write can't be paused. */
@@ -1423,6 +1576,8 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
             if( reason ) 
                 reason->reason = SUBARRAY_TIMING;
         }
+        
+
     
     }
 
