@@ -88,7 +88,7 @@ SubArray::SubArray( )
     nextPrecharge = 0;
     nextRead = 0;
     nextWrite = 0;
-    
+    nextClone = 0;
     dataCycles = 0;
     worstCaseWrite = 0;
 
@@ -580,44 +580,55 @@ bool SubArray::Read( NVMainRequest *request )
  * Clone() fulfills the row clone function
  */
 bool SubArray::Clone( NVMainRequest *request )
-{
-    std::cout<<"Clone function called"<<std::endl;
+{   
+    std::cout<<"Clone function called in Subarray"<<std::endl;
     
-    std::cout<<"First doing a read"<<std::endl;
+    std::cout<<"First doing a read in Subarray"<<std::endl;
+
     bool readReturn = Read( request );
     if(!readReturn)
     {
-        std::cout<<"Read failed"<<std::endl;
+        std::cout<<"Read failed in Subarray"<<std::endl;
         return false;
     }
     else
     {
-        std::cout<<"Read done"<<std::endl;
+        std::cout<<"Read done in Subarray"<<std::endl;
     }
 
-    // Create a new request with the data we just read
-    NVMainRequest *writeRequest = new NVMainRequest( );
-    *writeRequest = *request;
-    writeRequest->type = WRITE;
-    writeRequest->owner = this;
-    writeRequest->data = request->data;
-    
-    std::cout<<"Now doing a write"<<std::endl;
-    bool writeReturn = Write( writeRequest );
-    if(!writeReturn)
-    {
-        std::cout<<"Write failed"<<std::endl;
-        return false;
-    }
-    else
-    {
-        std::cout<<"Write done"<<std::endl;
-    }
+   
 
     // Clone is done
-    std::cout<<"Clone done"<<std::endl;
+    std::cout<<"Clone done in Subarray"<<std::endl;
     
     return true;
+   
+    // // Get source and destination row addresses
+    // uint64_t srcRow = request->address;
+    // uint64_t dstRow = request->address2;
+    
+    // // Activate source row
+    // ActivateRow( srcRow, ACTIVATE );
+    
+    // // Read from source row
+    // ReadRow( srcRow, READ );
+    
+    // // Precharge source row
+    // PrechargeRow( srcRow, PRECHARGE );
+    
+    // // Activate destination row
+    // ActivateRow( dstRow, ACTIVATE );
+    
+    // // Write to destination row
+    // WriteRow( dstRow, WRITE );
+    
+    // // Precharge destination row
+    // PrechargeRow( dstRow, PRECHARGE );
+    
+    // Set state to IDLE
+    // state = IDLE;
+    
+    
 }
 
 /*
@@ -1339,6 +1350,8 @@ ncycle_t SubArray::NextIssuable( NVMainRequest *request )
 
     if( request->type == ACTIVATE ) nextCompare = nextActivate;
     else if( request->type == READ ) nextCompare = nextRead;
+    // add an else if condition for PIMOP
+    else if( request->type == PIMOP ) nextCompare = nextClone;
     else if( request->type == WRITE ) nextCompare = nextWrite;
     else if( request->type == PRECHARGE ) nextCompare = nextPrecharge;
         
@@ -1396,7 +1409,23 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
             if( reason ) 
                 reason->reason = SUBARRAY_TIMING;
         }
+    
     }
+    // Add one more else if for req->type == PIMOP
+    else if( req->type == PIMOP )
+    {
+        if( nextClone > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
+            || state != SUBARRAY_OPEN  /* or, the subarray is not active */
+            || opRow != openRow        /* or, the target row is not the open row */
+            || ( p->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED ) ) /* or, write can't be paused. */
+        {
+            rv = false;
+            if( reason ) 
+                reason->reason = SUBARRAY_TIMING;
+        }
+    
+    }
+
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
         if( nextWrite > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to write */
@@ -1564,7 +1593,7 @@ bool SubArray::RequestComplete( NVMainRequest *req )
                 GetEventQueue( )->InsertEvent( EventResponse, this, req, 
                     GetEventQueue()->GetCurrentCycle() + p->tRP );
                 break;
-
+            case PIMOP:// will have to see how to handle this
             case PRECHARGE:
             case PRECHARGE_ALL:
                 /* close the subarray, increment the statistic number */

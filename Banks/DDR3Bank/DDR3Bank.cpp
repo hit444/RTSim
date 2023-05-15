@@ -62,6 +62,7 @@ DDR3Bank::DDR3Bank( )
     nextPrecharge = 0;
     nextRead = 0;
     nextWrite = 0;
+    nextClone = 0;
     nextRefresh = 0;
     nextRefreshDone = 0;
     nextPowerDown = 0;
@@ -476,41 +477,41 @@ bool DDR3Bank::Read( NVMainRequest *request )
 
 bool DDR3Bank::Clone( NVMainRequest *request )
 {
-    std::cout<<"Clone function called"<<std::endl;
+    std::cout<<"Clone function called in DDR3 bank"<<std::endl;
     
-    std::cout<<"First doing a read"<<std::endl;
+    std::cout<<"First doing a read in DDR3 Bank"<<std::endl;
     bool readReturn = Read( request );
     if(!readReturn)
     {
-        std::cout<<"Read failed"<<std::endl;
+        std::cout<<"Read failed in DDR3 bank"<<std::endl;
         return false;
     }
     else
     {
-        std::cout<<"Read done"<<std::endl;
+        std::cout<<"Read done in DDR3 bank"<<std::endl;
     }
 
-    // Create a new request with the data we just read
-    NVMainRequest *writeRequest = new NVMainRequest( );
-    *writeRequest = *request;
-    writeRequest->type = WRITE;
-    writeRequest->owner = this;
-    writeRequest->data = request->data;
+    // // Create a new request with the data we just read
+    // NVMainRequest *writeRequest = new NVMainRequest( );
+    // *writeRequest = *request;
+    // writeRequest->type = WRITE;
+    // writeRequest->owner = this;
+    // writeRequest->data = request->data;
     
-    std::cout<<"Now doing a write"<<std::endl;
-    bool writeReturn = Write( writeRequest );
-    if(!writeReturn)
-    {
-        std::cout<<"Write failed"<<std::endl;
-        return false;
-    }
-    else
-    {
-        std::cout<<"Write done"<<std::endl;
-    }
+    // std::cout<<"Now doing a write"<<std::endl;
+    // bool writeReturn = Write( writeRequest );
+    // if(!writeReturn)
+    // {
+    //     std::cout<<"Write failed"<<std::endl;
+    //     return false;
+    // }
+    // else
+    // {
+    //     std::cout<<"Write done"<<std::endl;
+    // }
 
     // Clone is done
-    std::cout<<"Clone done"<<std::endl;
+    std::cout<<"Clone done in DDR3 bank"<<std::endl;
     
     return true;
 }
@@ -769,6 +770,7 @@ ncycle_t DDR3Bank::NextIssuable( NVMainRequest *request )
 
     if( request->type == ACTIVATE || request->type == REFRESH ) nextCompare = nextActivate;
     else if( request->type == READ || request->type == READ_PRECHARGE ) nextCompare = nextRead;
+    else if( request->type == PIMOP ) nextCompare = nextClone;
     else if( request->type == WRITE || request->type == WRITE_PRECHARGE ) nextCompare = nextWrite;
     else if( request->type == PRECHARGE || request->type == PRECHARGE_ALL ) nextCompare = nextPrecharge;
         
@@ -825,6 +827,23 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
             rv = GetChild( req )->IsIssuable( req, reason );
         }
     }
+
+    // Add one more else if for req->type == PIMOP
+    else if( req->type == PIMOP )
+    {
+        if( nextClone > (GetEventQueue()->GetCurrentCycle()) 
+            || state != DDR3BANK_OPEN  )
+        {
+            rv = false;
+            if( reason ) 
+                reason->reason = BANK_TIMING;
+        }
+        else
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
+    }
+    
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
         if( nextWrite > (GetEventQueue()->GetCurrentCycle()) 

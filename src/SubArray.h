@@ -160,6 +160,7 @@ class SubArray : public NVMObject
     ncycle_t nextActivate;
     ncycle_t nextPrecharge;
     ncycle_t nextRead;
+    ncycle_t nextClone;
     ncycle_t nextWrite;
     ncycle_t nextPowerDown;
     bool writeCycle;

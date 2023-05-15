@@ -135,6 +135,7 @@ class DDR3Bank : public Bank
     ncycle_t nextActivate;
     ncycle_t nextPrecharge;
     ncycle_t nextRead;
+    ncycle_t nextClone;
     ncycle_t nextWrite;
     ncycle_t nextRefresh;
     ncycle_t nextRefreshDone;

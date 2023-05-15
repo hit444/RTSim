@@ -116,6 +116,7 @@ class StandardRank : public Rank
     ncounter_t banksPerRefresh;
 
     ncycle_t nextRead;
+    ncycle_t nextClone;
     ncycle_t nextWrite;
     ncycle_t nextActivate;
     ncycle_t nextPrecharge;
