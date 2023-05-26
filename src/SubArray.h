@@ -158,11 +158,22 @@ class SubArray : public NVMObject
     NVMainRequest lastOperation;
 
     ncycle_t lastActivate;
+    
+    // Next available cycle for an ACTIVATE command
     ncycle_t nextActivate;
+    
+    // Next available cycle for an PRECHARGE command
     ncycle_t nextPrecharge;
+    
+    // Next available cycle for an READ command
     ncycle_t nextRead;
+    
+    // Next available cycle for an CLONE command (or PIMOP?)
     ncycle_t nextClone;
+    
+    // Next available cycle for an WRITE command
     ncycle_t nextWrite;
+    
     ncycle_t nextPowerDown;
     bool writeCycle;
     std::vector<NVMainRequest *> writeBackRequests;
