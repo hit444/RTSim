@@ -593,7 +593,9 @@ bool SubArray::ReadClone( NVMainRequest *request )
             << std::endl;
         return false;
     }
-    else if( state != SUBARRAY_OPEN )
+	
+	// Fail states
+    if( state != SUBARRAY_OPEN )
     {
         std::cerr << "NVMain Error: try to read a subarray that is not active!"
             << std::endl;
@@ -1749,6 +1751,7 @@ bool SubArray::RequestComplete( NVMainRequest *req )
                     GetEventQueue()->GetCurrentCycle() + p->tRP );
                 break;
             case PIMOP:// will have to see how to handle this
+                break;
             case PRECHARGE:
             case PRECHARGE_ALL:
                 /* close the subarray, increment the statistic number */
