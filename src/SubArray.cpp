@@ -1751,6 +1751,7 @@ bool SubArray::RequestComplete( NVMainRequest *req )
                     GetEventQueue()->GetCurrentCycle() + p->tRP );
                 break;
             case PIMOP:// will have to see how to handle this
+                break;
             case PRECHARGE:
             case PRECHARGE_ALL:
                 /* close the subarray, increment the statistic number */
