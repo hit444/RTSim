@@ -75,8 +75,8 @@ enum SubArrayState
     SUBARRAY_UNKNOWN,     /* Unknown state. Uh oh. */
     SUBARRAY_OPEN,        /* SubArray has an open row */
     SUBARRAY_CLOSED,      /* SubArray is idle. */
-    SUBARRAY_PRECHARGING, /* SubArray is precharging and return to SUBARRAY_CLOSED */
-    SUBARRAY_REFRESHING   /* SubArray is refreshing and return to SUBARRAY_CLOSED */
+    SUBARRAY_PRECHARGING, /* SubArray is precharging and returning to SUBARRAY_CLOSED */
+    SUBARRAY_REFRESHING   /* SubArray is refreshing and returning to SUBARRAY_CLOSED */
 };
 
 enum WriteMode 
@@ -101,8 +101,16 @@ class SubArray : public NVMObject
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
 
+	/*
+	*	Returns True if the request satisfies timing constraints
+	*	False otherwise
+	*	
+	*	@param req Request to check
+	*	@param reason Optional fail state output
+	*/
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
-    bool IssueCommand( NVMainRequest *req );
+    
+	bool IssueCommand( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
     ncycle_t NextIssuable( NVMainRequest *request );
 
@@ -112,9 +120,12 @@ class SubArray : public NVMObject
 
     bool BetweenWriteIterations( );
 
+	/*
+	*	Returns True if the subarray is idle, false otherwise
+	*/
     bool Idle( );
+	
     ncycle_t GetDataCycles( ) { return dataCycles; }
-
     ncycle_t GetNextActivate( ) { return nextActivate; }
     ncycle_t GetNextRead( ) { return nextRead; }
     ncycle_t GetNextWrite( ) { return nextWrite; }
@@ -124,16 +135,28 @@ class SubArray : public NVMObject
     
     ncounter_t FindClosestPort(uint64_t dbc, uint64_t domain); //RTM specific
     
+	/*
+	*	Deprecated
+	*/
     void SetName( std::string );
-    void SetId( ncounter_t );
+    
+	void SetId( ncounter_t );
 
     void RegisterStats( );
     void CalculateStats( );
 
     ncounter_t GetId( );
-    std::string GetName( );
+    
+	/*
+	*	Deprecated
+	*/
+	std::string GetName( );
 
+	/*
+	*	Deprecated
+	*/
     void Cycle( ncycle_t );
+	
     bool IsWriting( ) { return isWriting; }
 
   private:
@@ -158,11 +181,22 @@ class SubArray : public NVMObject
     NVMainRequest lastOperation;
 
     ncycle_t lastActivate;
+    
+    // Next available cycle for an ACTIVATE command
     ncycle_t nextActivate;
+    
+    // Next available cycle for an PRECHARGE command
     ncycle_t nextPrecharge;
+    
+    // Next available cycle for an READ command
     ncycle_t nextRead;
+    
+    // Next available cycle for an CLONE command (or PIMOP?)
     ncycle_t nextClone;
+    
+    // Next available cycle for an WRITE command
     ncycle_t nextWrite;
+    
     ncycle_t nextPowerDown;
     bool writeCycle;
     std::vector<NVMainRequest *> writeBackRequests;
