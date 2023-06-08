@@ -573,30 +573,111 @@ bool DDR3Bank::Clone( NVMainRequest *request )
         std::cout<<"Read done in DDR3 bank"<<std::endl;
     }
 
-    // // Create a new request with the data we just read
-    // NVMainRequest *writeRequest = new NVMainRequest( );
-    // *writeRequest = *request;
-    // writeRequest->type = WRITE;
-    // writeRequest->owner = this;
-    // writeRequest->data = request->data;
-    
-    // std::cout<<"Now doing a write"<<std::endl;
-    // bool writeReturn = Write( writeRequest );
-    // if(!writeReturn)
-    // {
-    //     std::cout<<"Write failed"<<std::endl;
-    //     return false;
-    // }
-    // else
-    // {
-    //     std::cout<<"Write done"<<std::endl;
-    // }
+    std::cout<<"Now doing a write"<<std::endl;
+    bool writeReturn = WriteClone( request );
+    if(!writeReturn)
+    {
+        std::cout<<"Write failed in DDR3Bank"<<std::endl;
+        return false;
+    }
+    else
+    {
+        std::cout<<"Write done in DDR3Bank"<<std::endl;
+    }
 
     // Clone is done
     std::cout<<"Clone done in DDR3 bank"<<std::endl;
     
     return true;
 }
+
+
+bool DDR3Bank::WriteClone( NVMainRequest *request )
+{
+    /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
+    /* sanity check */
+    // if( nextWrite > GetEventQueue()->GetCurrentCycle() )
+    // {
+    //     std::cerr << "NVMain Error: Bank violates WRITE timing constraint!"
+    //         << std::endl;
+    //     return false;
+    // }
+    if( state != DDR3BANK_OPEN )
+    {
+        std::cerr << "NVMain Error: try to read a bank that is not active!"
+            << std::endl;
+        return false;
+    }
+
+    uint64_t writeRow, writeSubArray;
+    request->address.GetTranslatedAddress( &writeRow, NULL, NULL, NULL, NULL, &writeSubArray );
+
+    /* Update timing constraints */
+    /* if implicit precharge is enabled, do the precharge */
+    if( request->type == WRITE_PRECHARGE)
+    {
+        nextPowerDown = MAX( nextActivate, 
+                             GetEventQueue()->GetCurrentCycle()
+                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + p->tAL + p->tCWD + p->tBURST + p->tWR 
+                             + p->tRP );
+    }
+    /* else, no implicit precharge is enabled, simply update the timing */
+    else
+    {
+        nextPowerDown = MAX( nextPowerDown, 
+                             MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + GetEventQueue()->GetCurrentCycle() + p->tWRPDEN );
+    }
+
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                    + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                    + p->tCWD + p->tBURST + p->tWTR );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                     + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+
+    /* issue WRITE/WRITE_PRECHARGE to the target subarray */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    if( success )
+    {
+        dataCycles += p->tBURST;
+        writeCycle = true;
+        writes++;
+
+        if( request->type == WRITE_PRECHARGE )
+        {
+            precharges++;
+
+            /* update the activeSubArrayQueue list */
+            std::deque<ncounter_t>::iterator it;
+            for( it = activeSubArrayQueue.begin( ); 
+                    it != activeSubArrayQueue.end( ); ++it )
+            {
+                if( (*it) == writeSubArray )
+                {
+                    /* delete the item in the active subarray list */
+                    activeSubArrayQueue.erase( it );
+                    break;
+                }
+            }
+
+            if( activeSubArrayQueue.empty( ) )
+                state = DDR3BANK_CLOSED;
+        }
+    }
+    else
+    {
+        std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+            << "write the subarray " << writeSubArray << std::endl;
+    }
+
+    return success;
+}
+
 
 /*
  * Write() fulfills the column write function

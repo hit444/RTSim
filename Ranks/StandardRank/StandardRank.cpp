@@ -470,11 +470,78 @@ bool StandardRank::Clone( NVMainRequest *request )
     //     std::cout<<"Write done"<<std::endl;
     // }
 
-    // Clone is done
+    std::cout<<"Now doing a write in standard rank"<<std::endl;
+    bool writeReturn = WriteClone( request );
+    if(!writeReturn)
+    {
+        std::cout<<"Write failed"<<std::endl;
+        return false;
+    }
+    else
+    {
+        std::cout<<"Write done"<<std::endl;
+    }
+    
     std::cout<<"Clone in Standard Rank done"<<std::endl;
     
     return true;
 }
+
+bool StandardRank::WriteClone( NVMainRequest *request )
+{
+    uint64_t writeBank;
+
+    request->address.GetTranslatedAddress( NULL, NULL, &writeBank, NULL, NULL, NULL );
+
+    if( writeBank >= bankCount )
+    {
+        std::cerr << "NVMain Error: Attempted to write non-existant bank: " 
+            << writeBank << "!" << std::endl;
+        return false;
+    }
+
+    // if( nextWrite > GetEventQueue()->GetCurrentCycle() )
+    // {
+    //     std::cerr << "NVMain Error: Rank Write violates the timing constraint: " 
+    //         << writeBank << "!" << std::endl;
+    //     return false;
+    // }
+
+    /* issue WRITE or WRITE_PRECHARGE to the target bank */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    /* Even though the command may be WRITE_PRECHARGE, it still works */
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                    + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                    + p->tCWD + p->tBURST + p->tWTR );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                     + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+
+    /* if it has implicit precharge, insert the precharge to close the rank */ 
+    if( request->type == WRITE_PRECHARGE || request->type == PIMOP)
+    {
+        NVMainRequest* dupPRE = new NVMainRequest;
+        dupPRE->type = PRECHARGE;
+        dupPRE->owner = this;
+
+        GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
+                        GetEventQueue( )->GetCurrentCycle( ) 
+                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                        + p->tAL + p->tCWD + p->tBURST + p->tWR );
+    }
+
+    if( success == false )
+    {
+        std::cerr << "NVMain Error: Rank Write FAILED! Did you check IsIssuable?" 
+            << std::endl;
+    }
+
+    return success;
+}
+
 
 bool StandardRank::Write( NVMainRequest *request )
 {
