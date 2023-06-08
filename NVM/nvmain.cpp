@@ -62,7 +62,7 @@ NVMain::NVMain( )
 
     totalReadRequests = 0;
     totalWriteRequests = 0;
-
+    totalPIMRequests = 0;
     prefetcher = NULL;
     successfulPrefetches = 0;
     unsuccessfulPrefetches = 0;
@@ -403,6 +403,9 @@ bool NVMain::IssueCommand( NVMainRequest *request )
         {
             totalReadRequests++;
         }
+        else if( request->type == PIMOP){
+            totalPIMRequests++;
+        }
         else
         {
             totalWriteRequests++;
@@ -446,10 +449,15 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
         {
             totalReadRequests++;
         }
+        else if(request->type == PIMOP)
+        {
+            totalPIMRequests++;
+        }
         else
         {
             totalWriteRequests++;
         }
+        
 
         PrintPreTrace( request );
     }
@@ -517,6 +525,7 @@ void NVMain::RegisterStats( )
 {
     AddStat(totalReadRequests);
     AddStat(totalWriteRequests);
+    AddStat(totalPIMRequests);
     AddStat(successfulPrefetches);
     AddStat(unsuccessfulPrefetches);
 }
