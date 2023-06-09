@@ -752,11 +752,28 @@ bool SubArray::Clone( NVMainRequest *request )
     }
 
    
+    std::cout<<"Further doing a write in Subarray"<<std::endl;
 
+    bool writeReturn = WriteClone( request );
+    if(!writeReturn)
+    {
+        std::cout<<"Write failed in Subarray"<<std::endl;
+        return false;
+    }
+    else
+    {
+        std::cout<<"Write done in Subarray"<<std::endl;
+    }
     // Clone is done
     std::cout<<"Clone done in Subarray"<<std::endl;
-    
     return true;
+
+     // Do WriteClone() also here only
+    // If it completes all times, that is good. 
+    // If it completes only one time that is also good, 
+        // then try using the same variables as used by 
+        // Read() and Write(), i.e., nextRead, nextWrite, etc.
+    
    
     // // Get source and destination row addresses
     // uint64_t srcRow = request->address;
@@ -785,6 +802,224 @@ bool SubArray::Clone( NVMainRequest *request )
     
     
 }
+
+
+bool SubArray::WriteClone( NVMainRequest *request )
+{
+    uint64_t writeDBC, writeDomain;
+    ncycle_t writeTimer;
+    ncycle_t encLat = 0, endrLat = 0;
+    ncounter_t numUnchangedBits = 0;
+
+    request->address.GetTranslatedAddress( &writeDBC, &writeDomain, NULL, NULL, NULL, NULL );
+    
+    /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
+    /* sanity check */
+    // if( nextWrite > GetEventQueue()->GetCurrentCycle() )
+    // {
+    //     std::cerr << "NVMain Error: Subarray violates WRITE timing constraint!"
+    //         << std::endl;
+    //     return false;
+    // }
+    if( state != SUBARRAY_OPEN )
+    {
+        std::cerr << "NVMain Error: try to write a subarray that is not active!"
+            << std::endl;
+        return false;
+    }
+    else if( writeDBC != openRow )
+    {
+        std::cerr << "NVMain Error: try to write a row that is not opened "
+            << "in a subarray!" << std::endl;
+        return false;
+    }
+    
+    
+    /************************ONLY FOR RTM***************************
+     * Before accessing the subarray, perform the shifting operation
+     * to align port position to the requested data and incur 
+     * latency and energy !.
+     ***************************************************************/
+    
+//     if( !Shift( writeDBC, writeDomain ) )
+//         std::cout<<"Subarray: Shift function has returned error. !!"<<std::endl;
+    
+    if( writeMode == WRITE_THROUGH )
+    {
+        encLat = (dataEncoder ? dataEncoder->Write( request ) : 0);
+        endrLat = UpdateEndurance( request );
+
+        /* Count the number of bits modified. */
+        if( !p->WriteAllBits )
+        {
+            uint8_t *bitCountData = new uint8_t[request->data.GetSize()];
+
+            for( uint64_t bitCountByte = 0; bitCountByte < request->data.GetSize(); bitCountByte++ )
+            {
+                bitCountData[bitCountByte] = request->data.GetByte( bitCountByte )
+                                           ^ request->oldData.GetByte( bitCountByte );
+            }
+
+            ncounter_t bitCountWords = request->data.GetSize()/4;
+
+            ncounter_t numChangedBits = CountBitsMLC1( 1, (uint32_t*)bitCountData, bitCountWords );
+
+            assert( request->data.GetSize()*8 >= numChangedBits );
+            numUnchangedBits = request->data.GetSize()*8 - numChangedBits;
+        }
+    }
+
+    /* Determine the write time. */
+    writeTimer = WriteCellData( request ); // Assume write-through.
+    if( request->flags & NVMainRequest::FLAG_PAUSED ) // This was paused, restart with remaining time
+    {
+        writeTimer = request->writeProgress;
+        request->flags &= ~NVMainRequest::FLAG_PAUSED; // unpause this
+    }
+
+    if( request->flags & NVMainRequest::FLAG_CANCELLED )
+    {
+        request->flags &= ~NVMainRequest::FLAG_CANCELLED; // restart this
+    }
+
+    if( writeMode == WRITE_BACK && writeCycle )
+    {
+        writeTimer = 0;
+
+        NVMainRequest *requestCopy = new NVMainRequest( );
+        *requestCopy = *request;
+        writeBackRequests.push_back( requestCopy );
+    }
+
+    /* Write canceling/pausing only for write-through memory */
+    if( writeMode == WRITE_THROUGH )
+        request->writeProgress = writeTimer;
+
+    /* Save the next* state incause we cancel a write. */
+    nextActivatePreWrite = nextActivate;
+    nextPrechargePreWrite = nextPrecharge;
+    nextReadPreWrite = nextRead;
+    nextWritePreWrite = nextWrite;
+    nextPowerDownPreWrite = nextPowerDown;
+
+    if( writeMode == WRITE_THROUGH )
+    {
+        writeTimer += encLat + endrLat;
+
+        averageWriteTime = ((averageWriteTime * static_cast<double>(measuredWriteTimes)) + static_cast<double>(writeTimer)) 
+                         / (static_cast<double>(measuredWriteTimes) + 1.0);
+        measuredWriteTimes++;
+    }
+
+    /* Update timing constraints */
+    if( request->type == WRITE_PRECHARGE)
+    {
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle()
+                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                            + p->tAL + p->tCWD + p->tBURST 
+                            + writeTimer + p->tWR + p->tRP );
+
+        nextPrecharge = MAX( nextPrecharge, nextActivate );
+        nextRead = MAX( nextRead, nextActivate );
+        nextWrite = MAX( nextWrite, nextActivate );
+
+        /* close the subarray */
+        NVMainRequest *preReq = new NVMainRequest( );
+        *preReq = *request;
+        preReq->owner = this;
+
+        /* insert the event to issue the implicit precharge */ 
+        GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
+            GetEventQueue()->GetCurrentCycle() 
+            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+            + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
+    }
+    else
+    {
+        nextPrecharge = MAX( nextPrecharge, 
+                             GetEventQueue()->GetCurrentCycle() 
+                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
+
+        nextRead = MAX( nextRead, 
+                        GetEventQueue()->GetCurrentCycle() 
+                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                        + p->tCWD + p->tBURST + p->tWTR + writeTimer );
+
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() 
+                         + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer );
+    }
+
+    nextPowerDown = MAX( nextPowerDown, nextPrecharge );
+
+    /* Mark that a write is in progress in cause we want to pause/cancel. */
+    isWriting = true;
+    writeRequest = request;
+    // TODO: Should we disallow pausing during the data burst?
+    writeStart = GetEventQueue()->GetCurrentCycle();
+    writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
+    writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD 
+                     + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer;
+
+    /* The parent has our hook in the children list, we need to find this. */
+    std::vector<NVMObject_hook *>& children = GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == this )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    writeEvent = new NVM::Event( );
+    writeEvent->SetType( EventResponse );
+    writeEvent->SetRecipient( hook );
+    writeEvent->SetRequest( request );
+
+    /* Issue a bus burst request when the burst starts. */
+    NVMainRequest *busReq = new NVMainRequest( );
+    *busReq = *request;
+    busReq->type = BUS_READ;
+    busReq->owner = this;
+
+    GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
+            GetEventQueue()->GetCurrentCycle() + p->tCWD );
+
+    /* Notify owner of write completion as well */
+    GetEventQueue( )->InsertEvent( writeEvent, writeEventTime );
+
+    /* Calculate energy. */
+    if( p->EnergyModel == "current" )
+    {
+        /* DRAM Model. */
+        subArrayEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+
+        burstEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+    }
+    else
+    {
+        /* Flat energy model. */
+        subArrayEnergy += p->Ewr - p->Ewrpb * numUnchangedBits;
+
+        burstEnergy += p->Ewr;
+    }
+
+    writeCycle = true;
+
+    writes++;
+    dataCycles += p->tBURST;
+    
+    return true;
+}
+
 
 /*
  * Write() fulfills the column write function

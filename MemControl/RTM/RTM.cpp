@@ -74,7 +74,7 @@ RTM::RTM( )
 
     mem_reads = 0;
     mem_writes = 0;
-
+    mem_pimops = 0;
     rb_hits = 0;
     rb_miss = 0;
 
@@ -116,6 +116,7 @@ void RTM::RegisterStats( )
 {
     AddStat(mem_reads);
     AddStat(mem_writes);
+    AddStat(mem_pimops);
     AddStat(rb_hits);
     AddStat(rb_miss);
     AddStat(starvation_precharges);
@@ -166,6 +167,9 @@ bool RTM::IssueCommand( NVMainRequest *req )
 
     if( req->type == READ )
         mem_reads++;
+    // add a condition for pimop
+    else if( req->type == PIMOP )
+        mem_pimops++;
     else
         mem_writes++;
 
