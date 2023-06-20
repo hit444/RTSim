@@ -857,9 +857,10 @@ bool DDR3Bank::Precharge( NVMainRequest *request )
 
             if( success == false )
             {
-                std::cerr << "NVMain Error: Bank " << bankId << " failed to "
-                    << "issue " << request->type << " to subarray" 
-                    << openedSubArray << std::endl;
+                //std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+                //    << "issue " << (OpType) request->type << " to subarray" 
+                //    << openedSubArray << std::endl;
+                operator<<(std::cerr, request->type);
                 return false;
             }
 

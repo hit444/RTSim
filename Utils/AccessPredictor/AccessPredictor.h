@@ -50,9 +50,12 @@ class AccessPredictor : public AddressTranslator, public NVMObject
     ~AccessPredictor( );
 
     using AddressTranslator::Translate;
+    using AddressTranslator::SetConfig;
     using NVMObject::GetStats;
     using NVMObject::SetStats;
     using NVMObject::StatName;
+
+    virtual void SetConfig( Config * /*config*/, bool /*createChildren*/ = true ) { }
 
     /* Translate is request for system traversal via GetChild() */
     virtual uint64_t Translate( NVMainRequest *request ) = 0;

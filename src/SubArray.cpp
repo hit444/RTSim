@@ -258,6 +258,8 @@ void SubArray::SetConfig( Config *c, bool createChildren )
             dataEncoder->SetStats( GetStats( ) );
         }
     }
+
+    SetDebugName("SubArray", conf);
 }
 
 void SubArray::RegisterStats( )
@@ -352,13 +354,13 @@ bool SubArray::Activate( NVMainRequest *request )
     /* sanity check */
     if( nextActivate > GetEventQueue()->GetCurrentCycle() )
     {
-        std::cerr << "NVMain Error: SubArray violates ACTIVATION timing constraint!"
+        std::cerr << "NVMain Error - Subarray::Activate: SubArray violates ACTIVATION timing constraint!"
             << std::endl;
         return false;
     }
     else if( p->UsePrecharge && state != SUBARRAY_CLOSED )
     {
-        std::cerr << "NVMain Error: try to open a subarray that is not idle!"
+        std::cerr << "NVMain Error - Subarray::Activate: try to open a subarray that is not idle!"
             << std::endl;
         return false;
     }
@@ -438,19 +440,19 @@ bool SubArray::Read( NVMainRequest *request )
     /* sanity check */
     if( nextRead > GetEventQueue()->GetCurrentCycle() )
     {
-        std::cerr << "NVMain Error: Subarray violates READ timing constraint!"
+        std::cerr << "NVMain Error - Subarray::Read: Subarray violates READ timing constraint!"
             << std::endl;
         return false;
     }
     else if( state != SUBARRAY_OPEN )
     {
-        std::cerr << "NVMain Error: try to read a subarray that is not active!"
+        std::cerr << "NVMain Error - Subarray::Read: try to read a subarray that is not active!"
             << std::endl;
         return false;
     }
     else if( readDBC != openRow )
     {
-        std::cerr << "NVMain Error: try to read a row that is not opened in a subarray!"
+        std::cerr << "NVMain Error - Subarray::Read: try to read a row that is not opened in a subarray!"
             << std::endl;
         return false;
     }
@@ -589,7 +591,7 @@ bool SubArray::ReadClone( NVMainRequest *request )
     /* sanity check */
     if( nextRead > GetEventQueue()->GetCurrentCycle() )
     {
-        std::cerr << "NVMain Error: Subarray violates READ timing constraint!"
+        std::cerr << "NVMain Error - Subarray::ReadClone: Subarray violates READ timing constraint!"
             << std::endl;
         return false;
     }
@@ -597,13 +599,13 @@ bool SubArray::ReadClone( NVMainRequest *request )
 	// Fail states
     if( state != SUBARRAY_OPEN )
     {
-        std::cerr << "NVMain Error: try to read a subarray that is not active!"
+        std::cerr << "NVMain Error - Subarray::ReadClone: try to read a subarray that is not active!"
             << std::endl;
         return false;
     }
     else if( readDBC != openRow )
     {
-        std::cerr << "NVMain Error: try to read a row that is not opened in a subarray!"
+        std::cerr << "NVMain Error - Subarray::ReadClone: try to read a row that is not opened in a subarray!"
             << std::endl;
         return false;
     }
@@ -736,36 +738,22 @@ bool SubArray::ReadClone( NVMainRequest *request )
  */
 bool SubArray::Clone( NVMainRequest *request )
 {   
-    std::cout<<"Clone function called in Subarray"<<std::endl;
-    
-    std::cout<<"First doing a read in Subarray"<<std::endl;
+    *debugStream << "Subarray: Performing RowClone for request " << request->arrivalCycle << " of type " << request->type << '\n';
 
     bool readReturn = ReadClone( request );
     if(!readReturn)
     {
-        std::cout<<"Read failed in Subarray"<<std::endl;
+        *debugStream <<"Subarray: RowClone read failed!\n";
         return false;
     }
-    else
-    {
-        std::cout<<"Read done in Subarray"<<std::endl;
-    }
-
-   
-    std::cout<<"Further doing a write in Subarray"<<std::endl;
 
     bool writeReturn = WriteClone( request );
     if(!writeReturn)
     {
-        std::cout<<"Write failed in Subarray"<<std::endl;
+        *debugStream <<"Subarray: RowClone write failed!\n";
         return false;
     }
-    else
-    {
-        std::cout<<"Write done in Subarray"<<std::endl;
-    }
-    // Clone is done
-    std::cout<<"Clone done in Subarray"<<std::endl;
+
     return true;
 
      // Do WriteClone() also here only
@@ -1939,6 +1927,8 @@ bool SubArray::IssueCommand( NVMainRequest *req )
 
 bool SubArray::RequestComplete( NVMainRequest *req )
 {
+    *debugStream << "Subarray: Completing req " << req->arrivalCycle << " of type " << req->type << '\n';
+
     if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
         /*  
@@ -1966,6 +1956,7 @@ bool SubArray::RequestComplete( NVMainRequest *req )
 
     if( req->owner == this )
     {
+        *debugStream << "Subarray: This subarray owns this request\n";
         switch( req->type )
         {
             /* may implement more functions in the future */

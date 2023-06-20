@@ -48,10 +48,9 @@
 
 namespace NVM {
 
-
 enum OpType 
 { 
-    NOP = 0,        /* No Operation */
+    NOP,        /* No Operation */
     ACTIVATE,       /* a.k.a. RAS */
     SHIFT,          /* only used in Racetrack memory also known as Domain Wall Memory*/
     READ,           /* a.k.a. CAS-R */ 
@@ -71,6 +70,35 @@ enum OpType
     CACHED_WRITE,    /* Check if write is cached anywhere in hierarchy. */
     PIMOP /* PIM operation: want to do row clone by this */
 };
+
+inline std::ostream& operator<<(std::ostream& os, NVM::OpType type)
+{
+    using namespace NVM;
+
+    switch (type)
+    {
+        case NOP: return os << "NOP";
+        case ACTIVATE: return os << "ACTIVATE";  
+        case SHIFT: return os << "SHIFT";          
+        case READ: return os << "READ";          
+        case READ_PRECHARGE: return os << "READ_PRECHARGE";
+        case WRITE: return os << "WRITE";          
+        case WRITE_PRECHARGE: return os << "WRITE_PRECHARGE";
+        case PRECHARGE: return os << "PRECHARGE";    
+        case PRECHARGE_ALL: return os << "PRECHARGE_ALL";  
+        case POWERDOWN_PDA: return os << "POWERDOWN_PDA";  
+        case POWERDOWN_PDPF: return os << "POWERDOWN_PDPF"; 
+        case POWERDOWN_PDPS: return os << "POWERDOWN_PDPS"; 
+        case POWERUP: return os << "POWERUP";        
+        case REFRESH: return os << "REFRESH";        
+        case BUS_READ: return os << "BUS_READ";      
+        case BUS_WRITE: return os << "BUS_WRITE";    
+        case CACHED_READ: return os << "CACHED_READ";    
+        case CACHED_WRITE: return os << "CACHED_WRITE"; 
+        case PIMOP: return os << "PIMOP";
+        default: return os;
+    }
+}
 
 enum MemRequestStatus 
 { 
@@ -225,5 +253,9 @@ bool NVMainRequest::operator<( NVMainRequest m ) const
 }
 
 };
+
+//std::ostream& operator<<(std::ostream& os, const NVM::OpType& type);
+
+
 
 #endif

@@ -30,7 +30,7 @@ if build_type == None or build_type == "fast":
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-Woverloaded-virtual')
     env.Append(CCFLAGS='-fPIC')
-    env.Append(CCFLAGS='-std=c++0x')
+    env.Append(CCFLAGS='-std=c++20')
     env.Append(CCFLAGS='-DNDEBUG')
     env['OBJSUFFIX'] = '.fo'
     build_type = "fast"
@@ -42,7 +42,7 @@ elif build_type == "debug":
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-Woverloaded-virtual')
     env.Append(CCFLAGS='-fPIC')
-    env.Append(CCFLAGS='-std=c++0x')
+    env.Append(CCFLAGS='-std=c++20')
     env['OBJSUFFIX'] = '.do'
 elif build_type == "prof":
     env.Append(CCFLAGS='-O0')
@@ -53,7 +53,7 @@ elif build_type == "prof":
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-Woverloaded-virtual')
     env.Append(CCFLAGS='-fPIC')
-    env.Append(CCFLAGS='-std=c++0x')
+    env.Append(CCFLAGS='-std=c++20')
     env.Append(CCFLAGS='-DNDEBUG')
     env.Append(LINKFLAGS='-pg')
     env['OBJSUFFIX'] = '.po'

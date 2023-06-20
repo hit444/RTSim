@@ -60,6 +60,7 @@ class NVMain : public NVMObject
     NVMain( );
     ~NVMain( );
 
+    void SetConfig(Config* conf, bool createChildren = true);
     void SetConfig( Config *conf, std::string memoryName = "defaultMemory", bool createChildren = true );
 
     Config *GetConfig( );

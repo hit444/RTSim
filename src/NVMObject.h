@@ -41,6 +41,7 @@
 #include "Decoders/DecoderFactory.h"
 #include "src/Stats.h"
 #include "src/TagGenerator.h"
+#include "src/Configurable.h"
 
 #include <ostream>
 #include <vector>
@@ -149,7 +150,7 @@ class NVMObject_hook
  *  Generic base class for all simulator classes. The cycle function is called
  *  at each simulation step (at each clock cycle).
  */
-class NVMObject
+class NVMObject : public Configurable
 {
   public:
     NVMObject( );
@@ -223,6 +224,8 @@ class NVMObject
     std::vector<NVMObject *>& GetHooks( HookType h );
 
     virtual void SetDebugName( std::string dn, Config *config );
+
+    //virtual void SetConfig( Config *c, bool createChildren = true) = 0;
 
   protected:
     
