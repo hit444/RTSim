@@ -136,6 +136,18 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
 
 void EventQueue::InsertEvent( Event *event, ncycle_t when, int priority )
 {
+    // Check if request has already been handled
+    if (event->GetType() == EventResponse)
+    {
+        if (event->GetRequest()->isCompleted())
+        {
+            throw std::logic_error("Request already has a response!");
+        }
+        event->GetRequest()->markCompleted();
+        std::cout << "EventResponse created for " << event->GetRequest()->type << " request for address 0x" <<
+                std::hex << event->GetRequest()->address.GetPhysicalAddress() << '\n';
+    }
+
     event->SetCycle( when );
 
     /* If this event time is before our previous nextEventCycle, change it. */

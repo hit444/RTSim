@@ -343,6 +343,7 @@ void SubArray::RegisterStats( )
  */
 bool SubArray::Activate( NVMainRequest *request )
 {
+    *debugStream << "SubArray: Performing Activate\n";
     uint64_t activateRow;
 
     request->address.GetTranslatedAddress( &activateRow, NULL, NULL, NULL, NULL, NULL );
@@ -673,6 +674,7 @@ bool SubArray::ReadClone( NVMainRequest *request )
      *  Note: In critical word first, tBURST can be replaced with 1.
      */
     /* Issue a bus burst request when the burst starts. */
+    // Should RowClone put any data onto the bus?
     NVMainRequest *busReq = new NVMainRequest( );
     *busReq = *request;
     busReq->type = BUS_WRITE;
@@ -730,8 +732,6 @@ bool SubArray::ReadClone( NVMainRequest *request )
     
     return true;
 }
-
-
 
 /*
  * Clone() fulfills the row clone function
@@ -1789,7 +1789,6 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
         }
     
     }
-    // Add one more else if for req->type == PIMOP
     else if( req->type == PIMOP )
     {
         if( nextRead > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
@@ -1801,11 +1800,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
             if( reason ) 
                 reason->reason = SUBARRAY_TIMING;
         }
-        
-
-    
     }
-
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
         if( nextWrite > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to write */
@@ -1873,6 +1868,10 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
  */
 bool SubArray::IssueCommand( NVMainRequest *req )
 {
+    *debugStream << "SubArray: Received request " << req->arrivalCycle << 
+        " of type " << req->type <<
+        " at address 0x" << std::hex << req->address.GetPhysicalAddress() << '\n';
+
     bool rv = false;
 
     if( !IsIssuable( req ) )
@@ -1927,7 +1926,9 @@ bool SubArray::IssueCommand( NVMainRequest *req )
 
 bool SubArray::RequestComplete( NVMainRequest *req )
 {
-    *debugStream << "Subarray: Completing req " << req->arrivalCycle << " of type " << req->type << '\n';
+    *debugStream << "Subarray: Completing req " << req->arrivalCycle << 
+            " of type " << req->type << 
+            " at address 0x" << std::hex << req->address.GetPhysicalAddress() << '\n';
 
     if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
@@ -1964,6 +1965,7 @@ bool SubArray::RequestComplete( NVMainRequest *req )
             case SHIFT:
             case READ:
             case WRITE:
+            case PIMOP:
                 delete req;
                 break;
 
@@ -1975,8 +1977,6 @@ bool SubArray::RequestComplete( NVMainRequest *req )
                 /* insert the implicit precharge */
                 GetEventQueue( )->InsertEvent( EventResponse, this, req, 
                     GetEventQueue()->GetCurrentCycle() + p->tRP );
-                break;
-            case PIMOP:// will have to see how to handle this
                 break;
             case PRECHARGE:
             case PRECHARGE_ALL:
@@ -2018,6 +2018,8 @@ bool SubArray::RequestComplete( NVMainRequest *req )
                 delete req;
                 break;
         }
+
+        *debugStream << "SubArray: Complete request at 0x" << std::hex << req << '\n';
 
         return true;
     }

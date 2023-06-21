@@ -152,6 +152,9 @@ class NVMObject;
 
 class NVMainRequest
 {
+    private:
+        bool handled;   // False until an EventResponse Event has been created for this request
+
   public:
     NVMainRequest( ) 
     { 
@@ -171,6 +174,7 @@ class NVMainRequest
         writeProgress = 0;
         cancellations = 0;
         owner = NULL;
+        handled = false;
     };
 
     ~NVMainRequest( )
@@ -218,6 +222,16 @@ class NVMainRequest
         FLAG_COUNT
     };
 
+    void markCompleted()
+    {
+        handled = true;
+    }
+
+    bool isCompleted()
+    {
+        return handled;
+    }
+
 };
 
 inline
@@ -242,6 +256,8 @@ const NVMainRequest& NVMainRequest::operator=( const NVMainRequest& m )
     queueCycle = m.queueCycle;
     issueCycle = m.issueCycle;
     completionCycle = m.completionCycle;
+
+    handled = m.handled;
 
     return *this; 
 }
