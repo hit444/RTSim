@@ -51,7 +51,6 @@ class PerfectPredictor : public AccessPredictor
 
     using AccessPredictor::Translate;
     uint64_t Translate( NVMainRequest *request );
-
 };
 
 

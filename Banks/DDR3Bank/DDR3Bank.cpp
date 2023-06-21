@@ -559,35 +559,22 @@ bool DDR3Bank::ReadClone( NVMainRequest *request )
 
 bool DDR3Bank::Clone( NVMainRequest *request )
 {
-    std::cout<<"Clone function called in DDR3 bank"<<std::endl;
+    *debugStream << "DDR3Bank: Performing RowClone for request " << request->arrivalCycle << " of type " << request->type << '\n';
     
-    std::cout<<"First doing a read in DDR3 Bank"<<std::endl;
     bool readReturn = ReadClone( request );
     if(!readReturn)
     {
-        std::cout<<"Read failed in DDR3 bank"<<std::endl;
+        *debugStream << "DDR3Bank: Read failed!\n";
         return false;
     }
-    else
-    {
-        std::cout<<"Read done in DDR3 bank"<<std::endl;
-    }
 
-    std::cout<<"Now doing a write"<<std::endl;
     bool writeReturn = WriteClone( request );
     if(!writeReturn)
     {
-        std::cout<<"Write failed in DDR3Bank"<<std::endl;
+        *debugStream << "DDR3Bank: Write failed!\n";
         return false;
     }
-    else
-    {
-        std::cout<<"Write done in DDR3Bank"<<std::endl;
-    }
 
-    // Clone is done
-    std::cout<<"Clone done in DDR3 bank"<<std::endl;
-    
     return true;
 }
 
@@ -857,9 +844,10 @@ bool DDR3Bank::Precharge( NVMainRequest *request )
 
             if( success == false )
             {
-                std::cerr << "NVMain Error: Bank " << bankId << " failed to "
-                    << "issue " << request->type << " to subarray" 
-                    << openedSubArray << std::endl;
+                //std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+                //    << "issue " << (OpType) request->type << " to subarray" 
+                //    << openedSubArray << std::endl;
+                operator<<(std::cerr, request->type);
                 return false;
             }
 

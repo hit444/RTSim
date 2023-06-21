@@ -103,6 +103,11 @@ Config *NVMain::GetConfig( )
     return config;
 }
 
+void NVMain::SetConfig(Config* conf, bool createChildren)
+{
+    SetConfig(conf, "defaultMemory", createChildren);
+}
+
 void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildren )
 {
     TranslationMethod *method;

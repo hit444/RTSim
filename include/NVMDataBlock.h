@@ -68,8 +68,8 @@ class NVMDataBlock
     NVMDataBlock( const NVMDataBlock& ) { }
 };
 
-};
-
 std::ostream& operator<<( std::ostream& out, const NVM::NVMDataBlock& obj );
+
+};
 
 #endif

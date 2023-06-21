@@ -123,7 +123,7 @@ NVMDataBlock& NVMDataBlock::operator=( const NVMDataBlock& m )
     return *this;
 }
 
-std::ostream& operator<<( std::ostream& out, const NVMDataBlock& obj )
+std::ostream& NVM::operator<<( std::ostream& out, const NVMDataBlock& obj )
 {
     obj.Print( out );
     return out;

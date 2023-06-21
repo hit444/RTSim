@@ -492,6 +492,10 @@ void Config::SetDebugLog( )
         std::cout << "Printing debug information to '" << debugLogFilename << "'" << std::endl;
         useDebugLog = true;
     }
+    else
+    {
+        useDebugLog = false;
+    }
 }
 
 std::ostream *Config::GetDebugLog( )

@@ -39,6 +39,7 @@
 #include "src/TranslationMethod.h"
 #include "src/Config.h"
 #include "src/Stats.h"
+#include "src/Configurable.h"
 #include "include/NVMainRequest.h"
 
 namespace NVM {
@@ -54,7 +55,7 @@ typedef enum
     SUBARRAY_FIELD,
 } TranslationField;
 
-class AddressTranslator
+class AddressTranslator : public Configurable
 {
   public:
     AddressTranslator( );

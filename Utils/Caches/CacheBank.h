@@ -131,6 +131,8 @@ class CacheBank : public NVMObject
     CacheSetDecoder decodeFunc;
     NVMObject *decodeClass;
     uint64_t DefaultDecoder( NVMAddress& addr );
+
+    void SetConfig(Config* conf, bool createChildren = true);
 };
 
 }; 

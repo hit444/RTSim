@@ -275,7 +275,7 @@ NVMObject::NVMObject( )
     eventQueue = NULL;
     hookType = NVMHOOK_NONE;
     hooks = new std::vector<NVMObject *> [NVMHOOK_COUNT];
-    debugStream = NULL;
+    debugStream = &std::cout;
     tagGen = NULL;
 }
 
