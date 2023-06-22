@@ -80,8 +80,8 @@ void FlipNWrite::InvertData( NVMDataBlock& data, uint64_t startBit, uint64_t end
     uint64_t wordSize;
     int startByte, endByte;
 
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
     startByte = (int)(startBit / 8);
@@ -154,11 +154,11 @@ ncycle_t FlipNWrite::Write( NVMainRequest *request )
     uint64_t rowPartitions;
     int *modifyCount;
 
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
-    rowSize = p->COLS * wordSize;
+    rowSize = params->COLS * wordSize;
     rowPartitions = ( rowSize * 8 ) / fpSize;
     
     flipPartitions = ( wordSize * 8 ) / fpSize; 

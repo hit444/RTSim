@@ -130,18 +130,18 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
     {
         if( conf->KeyExists( "MATHeight" ) )
         {
-            rows = static_cast<int>(p->MATHeight);
-            subarrays = static_cast<int>( p->ROWS / p->MATHeight );
+            rows = static_cast<int>(params->MATHeight);
+            subarrays = static_cast<int>( params->ROWS / params->MATHeight );
         }
         else
         {
-            rows = static_cast<int>(p->ROWS);
+            rows = static_cast<int>(params->ROWS);
             subarrays = 1;
         }
-        cols = static_cast<int>(p->COLS);
-        banks = static_cast<int>(p->BANKS);
-        ranks = static_cast<int>(p->RANKS);
-        channels = static_cast<int>(p->CHANNELS);
+        cols = static_cast<int>(params->COLS);
+        banks = static_cast<int>(params->BANKS);
+        ranks = static_cast<int>(params->RANKS);
+        channels = static_cast<int>(params->CHANNELS);
 
         if( config->KeyExists( "Decoder" ) )
             translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
@@ -158,7 +158,7 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
                     NVM::mlog2( subarrays )
                     );
         method->SetCount( rows, cols, banks, ranks, channels, subarrays );
-        method->SetAddressMappingScheme( p->AddressMappingScheme );
+        method->SetAddressMappingScheme( params->AddressMappingScheme );
         translator->SetConfig( config, createChildren );
         translator->SetTranslationMethod( method );
         translator->SetDefaultField( CHANNEL_FIELD );
@@ -217,17 +217,17 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
 
     }
 
-    if( p->MemoryPrefetcher != "none" )
+    if( params->MemoryPrefetcher != "none" )
     {
-        prefetcher = PrefetcherFactory::CreateNewPrefetcher( p->MemoryPrefetcher );
-        std::cout << "Made a " << p->MemoryPrefetcher << " prefetcher." << std::endl;
+        prefetcher = PrefetcherFactory::CreateNewPrefetcher( params->MemoryPrefetcher );
+        std::cout << "Made a " << params->MemoryPrefetcher << " prefetcher." << std::endl;
     }
 
-    numChannels = static_cast<unsigned int>(p->CHANNELS);
+    numChannels = static_cast<unsigned int>(params->CHANNELS);
     
     std::string pretraceFile;
 
-    if( p->PrintPreTrace || p->EchoPreTrace )
+    if( params->PrintPreTrace || params->EchoPreTrace )
     {
         if( config->GetString( "PreTraceFile" ) == "" )
             pretraceFile = "trace.nvt";
@@ -247,9 +247,9 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
         else
             preTracer = TraceWriterFactory::CreateNewTraceWriter( config->GetString( "PreTraceWriter" ) );
 
-        if( p->PrintPreTrace )
+        if( params->PrintPreTrace )
             preTracer->SetTraceFile( pretraceFile );
-        if( p->EchoPreTrace )
+        if( params->EchoPreTrace )
             preTracer->SetEcho( true );
     }
 
@@ -356,7 +356,7 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
     /*
      *  Here we can generate a data trace to use with trace-based testing later.
      */
-    if( p->PrintPreTrace || p->EchoPreTrace )
+    if( params->PrintPreTrace || params->EchoPreTrace )
     {
         TraceLine tl;
 
@@ -483,7 +483,7 @@ bool NVMain::RequestComplete( NVMainRequest *request )
             //          << ")." << std::endl;
 
             /* Place in prefetch buffer. */
-            if( prefetchBuffer.size() >= p->PrefetchBufferSize )
+            if( prefetchBuffer.size() >= params->PrefetchBufferSize )
             {
                 unsuccessfulPrefetches++;
                 //std::cout << "Prefetch buffer is full. Removing oldest prefetch: 0x" << std::hex

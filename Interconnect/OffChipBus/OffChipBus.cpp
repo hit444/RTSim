@@ -64,9 +64,9 @@ void OffChipBus::SetConfig( Config *c, bool createChildren )
     conf = c;
     configSet = true;
 
-    offChipDelay = p->OffChipLatency;
+    offChipDelay = params->OffChipLatency;
 
-    numRanks = p->RANKS;
+    numRanks = params->RANKS;
 
     if( createChildren )
     {
@@ -163,14 +163,14 @@ double OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
 
     Pdq = 0.0f;
 
-    Rtt_nom  = p->Rtt_nom;
-    Rtt_wr   = p->Rtt_wr;
-    Rtt_cont = p->Rtt_cont;
+    Rtt_nom  = params->Rtt_nom;
+    Rtt_wr   = params->Rtt_wr;
+    Rtt_cont = params->Rtt_cont;
 
-    VDDQ = p->Vddq;
-    VSSQ = p->Vssq;
+    VDDQ = params->Vddq;
+    VSSQ = params->Vssq;
 
-    ranksPerDimm = p->RanksPerDIMM;
+    ranksPerDimm = params->RanksPerDIMM;
 
     if( ranksPerDimm == 1 )
     {

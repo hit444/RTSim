@@ -67,7 +67,8 @@ class NVMAddress
     bool IsTranslated( );
     bool HasPhysicalAddress( );
 
-    NVMAddress& operator=( const NVMAddress& m );
+    NVMAddress& operator=( const NVMAddress& m ) = default;
+    constexpr NVMAddress(const NVMAddress& m) = default;
   
  private:
     bool translated;

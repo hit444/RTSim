@@ -170,25 +170,25 @@ void SubArray::SetConfig( Config *c, bool createChildren )
     params->SetParams( c );
     SetParams( params );
 
-    if( p->MemIsRTM )
+    if( params->MemIsRTM )
     {
-        if( p->PortAccess == "static" )
+        if( params->PortAccess == "static" )
             StaticPortAcces = true;
         else
             StaticPortAcces = false;
         
-        if( p->PortUpdate == "lazy" )
+        if( params->PortUpdate == "lazy" )
             LazyPortUpdate = true;
         else
             LazyPortUpdate = false;
         
-        nPorts = p->nPorts;
-        DOMAINS = p->DOMAINS;
+        nPorts = params->nPorts;
+        DOMAINS = params->DOMAINS;
         
-        rwPortPos = new int*[p->DBCS];
-        rwPortInitPos = new int*[p->DBCS];
+        rwPortPos = new int*[params->DBCS];
+        rwPortInitPos = new int*[params->DBCS];
         
-        for( uint64_t i = 0; i < p->DBCS; i++ )
+        for( uint64_t i = 0; i < params->DBCS; i++ )
         {
             rwPortPos[i] = new int[nPorts];
             rwPortInitPos[i] = new int[nPorts];
@@ -196,7 +196,7 @@ void SubArray::SetConfig( Config *c, bool createChildren )
         
     //  std::cout<<"Initial Port Positions are as under!\n";
         
-        for( uint64_t i = 0; i < p->DBCS; i++ )
+        for( uint64_t i = 0; i < params->DBCS; i++ )
             for( uint64_t j = 1; j <= nPorts; j++ )
             {
                 /* Generalized */
@@ -209,7 +209,7 @@ void SubArray::SetConfig( Config *c, bool createChildren )
     }
     
 
-    MATHeight = p->MATHeight;
+    MATHeight = params->MATHeight;
     /* customize MAT size */
     if( conf->KeyExists( "MATWidth" ) )
         MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
@@ -238,20 +238,20 @@ void SubArray::SetConfig( Config *c, bool createChildren )
         }
     }
 
-    ncounter_t totalWritePulses = p->nWP00 + p->nWP01 + p->nWP10 + p->nWP11;
+    ncounter_t totalWritePulses = params->nWP00 + params->nWP01 + params->nWP10 + params->nWP11;
     averageWriteIterations = static_cast<ncounter_t>( (totalWritePulses+2)/4 );
 
     if( createChildren )
     {
         /* We need to create an endurance model at a sub-array level */
-        endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
+        endrModel = EnduranceModelFactory::CreateEnduranceModel( params->EnduranceModel );
         if( endrModel )
         {
             endrModel->SetConfig( conf, createChildren );
             endrModel->SetStats( GetStats( ) );
         }
 
-        dataEncoder = DataEncoderFactory::CreateNewDataEncoder( p->DataEncoder );
+        dataEncoder = DataEncoderFactory::CreateNewDataEncoder( params->DataEncoder );
         if( dataEncoder )
         {
             dataEncoder->SetConfig( conf, createChildren );
@@ -265,7 +265,7 @@ void SubArray::SetConfig( Config *c, bool createChildren )
 void SubArray::RegisterStats( )
 {
 
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         AddUnitStat(subArrayEnergy, "mA*t");
         AddUnitStat(activeEnergy, "mA*t");
@@ -289,7 +289,7 @@ void SubArray::RegisterStats( )
     AddStat(reads);
     AddStat(writes);
     /* Register these stats only for RaceTrack Memory */
-    if( p->MemIsRTM )
+    if( params->MemIsRTM )
     {
         AddStat(shiftReqs);
         AddUnitStat(shiftEnergy, "nJ");
@@ -359,7 +359,7 @@ bool SubArray::Activate( NVMainRequest *request )
             << std::endl;
         return false;
     }
-    else if( p->UsePrecharge && state != SUBARRAY_CLOSED )
+    else if( params->UsePrecharge && state != SUBARRAY_CLOSED )
     {
         std::cerr << "NVMain Error - Subarray::Activate: try to open a subarray that is not idle!"
             << std::endl;
@@ -369,24 +369,24 @@ bool SubArray::Activate( NVMainRequest *request )
     /* Update timing constraints */
     nextPrecharge = MAX( nextPrecharge, 
                          GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tRCD, p->tRAS ) );
+                             + MAX( params->tRCD, params->tRAS ) );
 
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                        + p->tRCD - p->tAL + p->tSH * (numShifts / wordSize) );
+                        + params->tRCD - params->tAL + params->tSH * (numShifts / wordSize) );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                         + p->tRCD - p->tAL + p->tSH * (numShifts / wordSize) );
+                         + params->tRCD - params->tAL + params->tSH * (numShifts / wordSize) );
 
     nextPowerDown = MAX( nextPowerDown, 
                          GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tRCD, p->tRAS ) );
+                             + MAX( params->tRCD, params->tRAS ) );
 
     /* the request is deleted by RequestComplete() */
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-                    GetEventQueue()->GetCurrentCycle() + p->tRCD + p->tSH * (numShifts / wordSize) );
+                    GetEventQueue()->GetCurrentCycle() + params->tRCD + params->tSH * (numShifts / wordSize) );
 
     /* 
      * The relative row number is record rather than the absolute row number 
@@ -400,24 +400,24 @@ bool SubArray::Activate( NVMainRequest *request )
     lastActivate = GetEventQueue()->GetCurrentCycle();
 
     /* Add to bank's total energy. */
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* DRAM Model */
-        ncycle_t tRC = p->tRAS + p->tRP;
+        ncycle_t tRC = params->tRAS + params->tRP;
 
-        subArrayEnergy += ( ( p->EIDD0 * (double)tRC ) 
-                    - ( ( p->EIDD3N * (double)(p->tRAS) )
-                    +  ( p->EIDD2N * (double)(p->tRP) ) ) ) / (double)(p->BANKS);
+        subArrayEnergy += ( ( params->EIDD0 * (double)tRC ) 
+                    - ( ( params->EIDD3N * (double)(params->tRAS) )
+                    +  ( params->EIDD2N * (double)(params->tRP) ) ) ) / (double)(params->BANKS);
 
-        activeEnergy += ( ( p->EIDD0 * (double)tRC ) 
-                      - ( ( p->EIDD3N * (double)(p->tRAS) )
-                      +  ( p->EIDD2N * (double)(p->tRP) ) ) ) / (double)(p->BANKS);
+        activeEnergy += ( ( params->EIDD0 * (double)tRC ) 
+                      - ( ( params->EIDD3N * (double)(params->tRAS) )
+                      +  ( params->EIDD2N * (double)(params->tRP) ) ) ) / (double)(params->BANKS);
     }
     else
     {
         /* Flat energy model. */
-        subArrayEnergy += p->Erd;
-        activeEnergy += p->Erd;
+        subArrayEnergy += params->Erd;
+        activeEnergy += params->Erd;
     }
 
     activates++;
@@ -475,8 +475,8 @@ bool SubArray::Read( NVMainRequest *request )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
-                                + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                                + p->tAL + p->tRTP + p->tRP + decLat );
+                                + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                                + params->tAL + params->tRTP + params->tRP + decLat );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
@@ -488,31 +488,31 @@ bool SubArray::Read( NVMainRequest *request )
 
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
-                        GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP + decLat
-                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1) );
+                        GetEventQueue()->GetCurrentCycle() + params->tAL + params->tRTP + decLat
+                        + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1) );
     }
     else
     {
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
-                                 + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                                 + p->tAL + p->tBURST + p->tRTP - p->tCCD + decLat );
+                                 + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                                 + params->tAL + params->tBURST + params->tRTP - params->tCCD + decLat );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
-                            + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+                            + MAX( params->tBURST, params->tCCD ) * request->burstCount );
 
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
-                             + p->tCAS + p->tBURST + p->tRTRS - p->tCWD + decLat );
+                             + MAX( params->tBURST, params->tCCD ) * (request->burstCount  - 1)
+                             + params->tCAS + params->tBURST + params->tRTRS - params->tCWD + decLat );
     }
 
     /* Read->Powerdown is typical the same for READ and READ_PRECHARGE. */
     nextPowerDown = MAX( nextPowerDown,
                          GetEventQueue()->GetCurrentCycle()
-                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
-                            + p->tCAS + p->tAL + p->tBURST + 1 + decLat );
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount  - 1)
+                            + params->tCAS + params->tAL + params->tBURST + 1 + decLat );
 
     /*
      *  Data is placed on the bus starting from tCAS and is complete after tBURST.
@@ -527,27 +527,27 @@ bool SubArray::Read( NVMainRequest *request )
     busReq->owner = this;
 
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
-            GetEventQueue()->GetCurrentCycle() + p->tCAS + decLat );
+            GetEventQueue()->GetCurrentCycle() + params->tCAS + decLat );
 
     /* Notify owner of read completion as well */
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-            GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST + decLat );
+            GetEventQueue()->GetCurrentCycle() + params->tCAS + params->tBURST + decLat );
 
 
     /* Calculate energy */
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* DRAM Model */
-        subArrayEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        subArrayEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
 
-        burstEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        burstEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
     }
     else
     {
         /* Flat Energy Model */
-        subArrayEnergy += p->Eopenrd;
+        subArrayEnergy += params->Eopenrd;
 
-        burstEnergy += p->Eopenrd;
+        burstEnergy += params->Eopenrd;
     }
 
     /*
@@ -574,7 +574,7 @@ bool SubArray::Read( NVMainRequest *request )
     }
 
     reads++;
-    dataCycles += p->tBURST;
+    dataCycles += params->tBURST;
     
     return true;
 }
@@ -628,8 +628,8 @@ bool SubArray::ReadClone( NVMainRequest *request )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
-                                + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                                + p->tAL + p->tRTP + p->tRP + decLat );
+                                + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                                + params->tAL + params->tRTP + params->tRP + decLat );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
@@ -641,31 +641,31 @@ bool SubArray::ReadClone( NVMainRequest *request )
 
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
-                        GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP + decLat
-                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1) );
+                        GetEventQueue()->GetCurrentCycle() + params->tAL + params->tRTP + decLat
+                        + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1) );
     }
     else
     {
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
-                                 + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                                 + p->tAL + p->tBURST + p->tRTP - p->tCCD + decLat );
+                                 + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                                 + params->tAL + params->tBURST + params->tRTP - params->tCCD + decLat );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
-                            + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+                            + MAX( params->tBURST, params->tCCD ) * request->burstCount );
 
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
-                             + p->tCAS + p->tBURST + p->tRTRS - p->tCWD + decLat );
+                             + MAX( params->tBURST, params->tCCD ) * (request->burstCount  - 1)
+                             + params->tCAS + params->tBURST + params->tRTRS - params->tCWD + decLat );
     }
 
     /* Read->Powerdown is typical the same for READ and READ_PRECHARGE. */
     nextPowerDown = MAX( nextPowerDown,
                          GetEventQueue()->GetCurrentCycle()
-                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
-                            + p->tCAS + p->tAL + p->tBURST + 1 + decLat );
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount  - 1)
+                            + params->tCAS + params->tAL + params->tBURST + 1 + decLat );
 
     /*
      *  Data is placed on the bus starting from tCAS and is complete after tBURST.
@@ -681,27 +681,27 @@ bool SubArray::ReadClone( NVMainRequest *request )
     busReq->owner = this;
 
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
-            GetEventQueue()->GetCurrentCycle() + p->tCAS + decLat );
+            GetEventQueue()->GetCurrentCycle() + params->tCAS + decLat );
 
     /* Notify owner of read completion as well */
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-            GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST + decLat );
+            GetEventQueue()->GetCurrentCycle() + params->tCAS + params->tBURST + decLat );
 
 
     /* Calculate energy */
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* DRAM Model */
-        subArrayEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        subArrayEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
 
-        burstEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        burstEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
     }
     else
     {
         /* Flat Energy Model */
-        subArrayEnergy += p->Eopenrd;
+        subArrayEnergy += params->Eopenrd;
 
-        burstEnergy += p->Eopenrd;
+        burstEnergy += params->Eopenrd;
     }
 
     /*
@@ -728,7 +728,7 @@ bool SubArray::ReadClone( NVMainRequest *request )
     }
 
     reads++;
-    dataCycles += p->tBURST;
+    dataCycles += params->tBURST;
     
     return true;
 }
@@ -838,7 +838,7 @@ bool SubArray::WriteClone( NVMainRequest *request )
         endrLat = UpdateEndurance( request );
 
         /* Count the number of bits modified. */
-        if( !p->WriteAllBits )
+        if( !params->WriteAllBits )
         {
             uint8_t *bitCountData = new uint8_t[request->data.GetSize()];
 
@@ -904,9 +904,9 @@ bool SubArray::WriteClone( NVMainRequest *request )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
-                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                            + p->tAL + p->tCWD + p->tBURST 
-                            + writeTimer + p->tWR + p->tRP );
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                            + params->tAL + params->tCWD + params->tBURST 
+                            + writeTimer + params->tWR + params->tRP );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
@@ -920,24 +920,24 @@ bool SubArray::WriteClone( NVMainRequest *request )
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
             GetEventQueue()->GetCurrentCycle() 
-            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-            + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
+            + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+            + params->tAL + params->tCWD + params->tBURST + writeTimer + params->tWR );
     }
     else
     {
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                             + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
+                             + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                             + params->tAL + params->tCWD + params->tBURST + writeTimer + params->tWR );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
-                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                        + p->tCWD + p->tBURST + p->tWTR + writeTimer );
+                        + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                        + params->tCWD + params->tBURST + params->tWTR + writeTimer );
 
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
-                         + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer );
+                         + MAX( params->tBURST, params->tCCD ) * request->burstCount + writeTimer );
     }
 
     nextPowerDown = MAX( nextPowerDown, nextPrecharge );
@@ -948,8 +948,8 @@ bool SubArray::WriteClone( NVMainRequest *request )
     // TODO: Should we disallow pausing during the data burst?
     writeStart = GetEventQueue()->GetCurrentCycle();
     writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
-    writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD 
-                     + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer;
+    writeEventTime = GetEventQueue()->GetCurrentCycle() + params->tCWD 
+                     + MAX( params->tBURST, params->tCCD ) * request->burstCount + writeTimer;
 
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = GetParent( )->GetTrampoline( )->GetChildren( );
@@ -979,31 +979,31 @@ bool SubArray::WriteClone( NVMainRequest *request )
     busReq->owner = this;
 
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
-            GetEventQueue()->GetCurrentCycle() + p->tCWD );
+            GetEventQueue()->GetCurrentCycle() + params->tCWD );
 
     /* Notify owner of write completion as well */
     GetEventQueue( )->InsertEvent( writeEvent, writeEventTime );
 
     /* Calculate energy. */
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* DRAM Model. */
-        subArrayEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        subArrayEnergy += ( ( params->EIDD4W - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
 
-        burstEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        burstEnergy += ( ( params->EIDD4W - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
     }
     else
     {
         /* Flat energy model. */
-        subArrayEnergy += p->Ewr - p->Ewrpb * numUnchangedBits;
+        subArrayEnergy += params->Ewr - params->Ewrpb * numUnchangedBits;
 
-        burstEnergy += p->Ewr;
+        burstEnergy += params->Ewr;
     }
 
     writeCycle = true;
 
     writes++;
-    dataCycles += p->tBURST;
+    dataCycles += params->tBURST;
     
     return true;
 }
@@ -1058,7 +1058,7 @@ bool SubArray::Write( NVMainRequest *request )
         endrLat = UpdateEndurance( request );
 
         /* Count the number of bits modified. */
-        if( !p->WriteAllBits )
+        if( !params->WriteAllBits )
         {
             uint8_t *bitCountData = new uint8_t[request->data.GetSize()];
 
@@ -1124,9 +1124,9 @@ bool SubArray::Write( NVMainRequest *request )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
-                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                            + p->tAL + p->tCWD + p->tBURST 
-                            + writeTimer + p->tWR + p->tRP );
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                            + params->tAL + params->tCWD + params->tBURST 
+                            + writeTimer + params->tWR + params->tRP );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
@@ -1140,24 +1140,24 @@ bool SubArray::Write( NVMainRequest *request )
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
             GetEventQueue()->GetCurrentCycle() 
-            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-            + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
+            + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+            + params->tAL + params->tCWD + params->tBURST + writeTimer + params->tWR );
     }
     else
     {
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                             + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
+                             + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                             + params->tAL + params->tCWD + params->tBURST + writeTimer + params->tWR );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
-                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                        + p->tCWD + p->tBURST + p->tWTR + writeTimer );
+                        + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                        + params->tCWD + params->tBURST + params->tWTR + writeTimer );
 
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
-                         + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer );
+                         + MAX( params->tBURST, params->tCCD ) * request->burstCount + writeTimer );
     }
 
     nextPowerDown = MAX( nextPowerDown, nextPrecharge );
@@ -1168,8 +1168,8 @@ bool SubArray::Write( NVMainRequest *request )
     // TODO: Should we disallow pausing during the data burst?
     writeStart = GetEventQueue()->GetCurrentCycle();
     writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
-    writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD 
-                     + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer;
+    writeEventTime = GetEventQueue()->GetCurrentCycle() + params->tCWD 
+                     + MAX( params->tBURST, params->tCCD ) * request->burstCount + writeTimer;
 
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = GetParent( )->GetTrampoline( )->GetChildren( );
@@ -1199,31 +1199,31 @@ bool SubArray::Write( NVMainRequest *request )
     busReq->owner = this;
 
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
-            GetEventQueue()->GetCurrentCycle() + p->tCWD );
+            GetEventQueue()->GetCurrentCycle() + params->tCWD );
 
     /* Notify owner of write completion as well */
     GetEventQueue( )->InsertEvent( writeEvent, writeEventTime );
 
     /* Calculate energy. */
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* DRAM Model. */
-        subArrayEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        subArrayEnergy += ( ( params->EIDD4W - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
 
-        burstEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        burstEnergy += ( ( params->EIDD4W - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
     }
     else
     {
         /* Flat energy model. */
-        subArrayEnergy += p->Ewr - p->Ewrpb * numUnchangedBits;
+        subArrayEnergy += params->Ewr - params->Ewrpb * numUnchangedBits;
 
-        burstEnergy += p->Ewr;
+        burstEnergy += params->Ewr;
     }
 
     writeCycle = true;
 
     writes++;
-    dataCycles += p->tBURST;
+    dataCycles += params->tBURST;
     
     return true;
 }
@@ -1311,23 +1311,23 @@ bool SubArray::Shift( NVMainRequest *request )
     /* the request is deleted by RequestComplete() */
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-                    GetEventQueue()->GetCurrentCycle() + p->tSH); //NOTE: We are not multiplying tSH by number of shifts because shifts of all tracks happen in parallel. This is the interleaved layout. In the serial layout, we will have to wait here for tSH * numShifts cycles.
+                    GetEventQueue()->GetCurrentCycle() + params->tSH); //NOTE: We are not multiplying tSH by number of shifts because shifts of all tracks happen in parallel. This is the interleaved layout. In the serial layout, we will have to wait here for tSH * numShifts cycles.
   
     lastActivate = GetEventQueue()->GetCurrentCycle();
     
     /* Calculate energy */
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* DRAM Model */
-        subArrayEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        subArrayEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
 
-        shiftEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
+        shiftEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
     }
     else
     {
         /* Flat Energy Model */
-        subArrayEnergy += p->Esh * ( numShifts / wordSize );// Esh = energy/single-shift for the entire word, for more than one shifts: * with numShifts. 
-        shiftEnergy += p->Esh * ( numShifts / wordSize );
+        subArrayEnergy += params->Esh * ( numShifts / wordSize );// Esh = energy/single-shift for the entire word, for more than one shifts: * with numShifts. 
+        shiftEnergy += params->Esh * ( numShifts / wordSize );
     }
 
     shiftReqs++;
@@ -1359,10 +1359,10 @@ bool SubArray::Precharge( NVMainRequest *request )
     }
 
     /* Update timing constraints */
-    writeTimer = MAX( 1, p->tRP ); // Assume write-through. Needs to be at least one due to event callback.
+    writeTimer = MAX( 1, params->tRP ); // Assume write-through. Needs to be at least one due to event callback.
     if( writeMode == WRITE_BACK && writeCycle )
     {
-        writeTimer = MAX( 1, p->tRP + WriteCellData( request ) );
+        writeTimer = MAX( 1, params->tRP + WriteCellData( request ) );
 
         ncycle_t encLat = 0;
         ncycle_t endrLat = 0;
@@ -1410,7 +1410,7 @@ bool SubArray::Refresh( NVMainRequest* request )
             << std::endl;
         return false;
     }
-    else if( (state != SUBARRAY_CLOSED && p->UsePrecharge) )
+    else if( (state != SUBARRAY_CLOSED && params->UsePrecharge) )
     {
         std::cerr << "NVMain Error: try to refresh a subarray that is not idle " 
             << std::endl;
@@ -1419,7 +1419,7 @@ bool SubArray::Refresh( NVMainRequest* request )
 
     /* Update timing constraints */
     nextActivate = MAX( nextActivate, 
-                        GetEventQueue()->GetCurrentCycle() + p->tRFC );
+                        GetEventQueue()->GetCurrentCycle() + params->tRFC );
 
     /* 
      *  Copies of refresh requests are made at the rank level (in case of multi-bank refresh).
@@ -1427,27 +1427,27 @@ bool SubArray::Refresh( NVMainRequest* request )
      */
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-              GetEventQueue()->GetCurrentCycle() + p->tRFC );
+              GetEventQueue()->GetCurrentCycle() + params->tRFC );
 
     /* set the subarray under refreshing */
     state = SUBARRAY_REFRESHING;
 
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* calibrate the refresh energy since we may have fine-grained refresh */
-        subArrayEnergy += ( ( p->EIDD5B - p->EIDD3N ) 
-                                * (double)(p->tRFC) / (double)(p->BANKS) ); 
+        subArrayEnergy += ( ( params->EIDD5B - params->EIDD3N ) 
+                                * (double)(params->tRFC) / (double)(params->BANKS) ); 
 
-        refreshEnergy += ( ( p->EIDD5B - p->EIDD3N ) 
-                                * (double)p->tRFC / (double)(p->BANKS) ); 
+        refreshEnergy += ( ( params->EIDD5B - params->EIDD3N ) 
+                                * (double)params->tRFC / (double)(params->BANKS) ); 
 
         
     }
     else
     {
-        subArrayEnergy += p->Eref;
+        subArrayEnergy += params->Eref;
 
-        refreshEnergy += p->Eref;
+        refreshEnergy += params->Eref;
     }
 
     return true;
@@ -1455,7 +1455,7 @@ bool SubArray::Refresh( NVMainRequest* request )
 
 void SubArray::CheckWritePausing( )
 {
-    if( p->WritePausing && isWriting )
+    if( params->WritePausing && isWriting )
     {
         /* Optimal write progress; no issues pausing at any time. */
         ncycle_t writeProgress = writeEnd - GetEventQueue()->GetCurrentCycle();
@@ -1465,7 +1465,7 @@ void SubArray::CheckWritePausing( )
          *  Realistically, we need to cancel the current iteration and go back to
          *  the start of the previous one
          */
-        if( p->pauseMode != PauseMode_Optimal )
+        if( params->pauseMode != PauseMode_Optimal )
         {
             ncycle_t nextIterationStart = writeStart;
             std::set<ncycle_t>::iterator iter;
@@ -1492,7 +1492,7 @@ void SubArray::CheckWritePausing( )
         measuredProgresses++;
 
         /* Pause after 40%, cancel otherwise. */
-        if( writePercent > p->PauseThreshold )
+        if( writePercent > params->PauseThreshold )
         {
             /* If optimal is paused on last iteration, it's done. */
             if( writeProgress != writeEnd )
@@ -1511,7 +1511,7 @@ void SubArray::CheckWritePausing( )
             writeRequest->flags |= NVMainRequest::FLAG_CANCELLED;
 
             /* Force writes to be completed after several cancellations to ensure forward progress. */
-            if( ++writeRequest->cancellations >= p->MaxCancellations )
+            if( ++writeRequest->cancellations >= params->MaxCancellations )
                 writeRequest->flags |= NVMainRequest::FLAG_FORCED;
 
             cancelledWrites++;
@@ -1557,17 +1557,17 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 {
     writeIterationStarts.clear( );
     uint32_t *rawData = reinterpret_cast<uint32_t*>(request->data.rawData);
-    unsigned int memoryWordSize = static_cast<unsigned int>(p->tBURST * p->RATE * p->BusWidth);
+    unsigned int memoryWordSize = static_cast<unsigned int>(params->tBURST * params->RATE * params->BusWidth);
     unsigned int writeBytes32 = memoryWordSize / 32;
 
-    if( p->UniformWrites )
+    if( params->UniformWrites )
     {
-        if( p->MLCLevels > 1 )
+        if( params->MLCLevels > 1 )
         {
             for( ncounter_t iter = 0; iter < averageWriteIterations; iter++ )
             {
                 ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
-                iterStart += iter * static_cast<ncycle_t>(p->tWP / averageWriteIterations);
+                iterStart += iter * static_cast<ncycle_t>(params->tWP / averageWriteIterations);
                 writeIterationStarts.insert( iterStart );
             }
         }
@@ -1588,43 +1588,43 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             writeCount1 = 256;
         }
 
-        if( p->EnergyModel != "current" )
+        if( params->EnergyModel != "current" )
         {
-            subArrayEnergy += p->Ereset * writeCount0;
-            subArrayEnergy += p->Eset * writeCount1;
-            writeEnergy += p->Ereset * writeCount0;
-            writeEnergy += p->Eset * writeCount1;
+            subArrayEnergy += params->Ereset * writeCount0;
+            subArrayEnergy += params->Eset * writeCount1;
+            writeEnergy += params->Ereset * writeCount0;
+            writeEnergy += params->Eset * writeCount1;
         }
 
-        return p->tWP;
+        return params->tWP;
     }
 
     ncycle_t maxDelay = 0;
 
     /* No data... assume all 0. */
     if( !rawData )
-        return p->tWP0;
+        return params->tWP0;
 
     /* Check the data for the worst-case write time. */
-    if( p->MLCLevels == 1 )
+    if( params->MLCLevels == 1 )
     {
         ncounter_t writeCount0 = CountBitsMLC1( 0, rawData, writeBytes32 );
         ncounter_t writeCount1 = CountBitsMLC1( 1, rawData, writeBytes32 );
 
-        if( p->EnergyModel != "current" )
+        if( params->EnergyModel != "current" )
         {
-            subArrayEnergy += p->Ereset * writeCount0;
-            subArrayEnergy += p->Eset * writeCount1;
-            writeEnergy += p->Ereset * writeCount0;
-            writeEnergy += p->Eset * writeCount1;
+            subArrayEnergy += params->Ereset * writeCount0;
+            subArrayEnergy += params->Eset * writeCount1;
+            writeEnergy += params->Ereset * writeCount0;
+            writeEnergy += params->Eset * writeCount1;
         }
 
-        ncycle_t delay0 = (writeCount0 == 0) ? 0 : p->tWP0;
-        ncycle_t delay1 = (writeCount1 == 0) ? 0 : p->tWP1;
+        ncycle_t delay0 = (writeCount0 == 0) ? 0 : params->tWP0;
+        ncycle_t delay1 = (writeCount1 == 0) ? 0 : params->tWP1;
 
         maxDelay = MAX(delay0, delay1);
     }
-    else if( p->MLCLevels == 2 )
+    else if( params->MLCLevels == 2 )
     {
         ncounter_t writeCount00 = CountBitsMLC2( 0, rawData, writeBytes32 );
         ncounter_t writeCount01 = CountBitsMLC2( 1, rawData, writeBytes32 );
@@ -1643,10 +1643,10 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         ncycle_t oncePulseDelay = 0;
         ncycle_t repeatPulseDelay = 0;
 
-        ncycle_t delay00 = (writeCount00 == 0) ? 0 : p->nWP00;
-        ncycle_t delay01 = (writeCount01 == 0) ? 0 : p->nWP01;
-        ncycle_t delay10 = (writeCount10 == 0) ? 0 : p->nWP10;
-        ncycle_t delay11 = (writeCount11 == 0) ? 0 : p->nWP11;
+        ncycle_t delay00 = (writeCount00 == 0) ? 0 : params->nWP00;
+        ncycle_t delay01 = (writeCount01 == 0) ? 0 : params->nWP01;
+        ncycle_t delay10 = (writeCount10 == 0) ? 0 : params->nWP10;
+        ncycle_t delay11 = (writeCount11 == 0) ? 0 : params->nWP11;
 
         ncycle_t programPulseCount = MAX( MAX( delay00, delay01 ),
                                           MAX( delay10, delay11 ) );
@@ -1656,7 +1656,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         if( writeCount01 || writeCount10 )
         {
             /* Inhibit weird outlier numbers. Using max stddev = 3 */
-            ncounters_t max_stddev = p->WPMaxVariance;
+            ncounters_t max_stddev = params->WPMaxVariance;
             ncounters_t maxPulseCount = max_stddev + programPulseCount;
             ncounters_t minPulseCount = programPulseCount - max_stddev;
             if( minPulseCount < 0 ) minPulseCount = 0;
@@ -1664,7 +1664,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             NormalDistribution norm;
 
             norm.SetMean( programPulseCount );
-            norm.SetVariance( p->WPVariance );
+            norm.SetVariance( params->WPVariance );
 
             thisPulseCount = norm.GetEndurance( );
 
@@ -1673,28 +1673,28 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             if( thisPulseCount < static_cast<ncycle_t>(minPulseCount) )
                 thisPulseCount = static_cast<ncycle_t>(minPulseCount);
 
-            if( p->programMode == ProgramMode_SRMS )
+            if( params->programMode == ProgramMode_SRMS )
             {
-                oncePulseDelay = p->tWP0;
-                repeatPulseDelay = p->tWP1;
+                oncePulseDelay = params->tWP0;
+                repeatPulseDelay = params->tWP1;
             }
             else // SSMR
             {
-                oncePulseDelay = p->tWP1;
-                repeatPulseDelay = p->tWP0;
+                oncePulseDelay = params->tWP1;
+                repeatPulseDelay = params->tWP0;
             }
         }
         else if( writeCount00 && !writeCount11 )
         {
-            oncePulseDelay = p->tWP0;
+            oncePulseDelay = params->tWP0;
         }
         else if( !writeCount00 && writeCount11 )
         {
-            oncePulseDelay = p->tWP1;
+            oncePulseDelay = params->tWP1;
         }
         else
         {
-            oncePulseDelay = MAX(p->tWP0, p->tWP1);
+            oncePulseDelay = MAX(params->tWP0, params->tWP1);
         }
 
         /* Insert times for write cancellation and pausing. */
@@ -1753,9 +1753,9 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     if( req->type == ACTIVATE )
     {
         if( nextActivate > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to open */
-            || (p->UsePrecharge && state != SUBARRAY_CLOSED)   /* or, the subarray needs a precharge */
-            || (p->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED) /* or, write can't be paused. */
-            || (p->WritePausing && isWriting && !(req->flags & NVMainRequest::FLAG_PRIORITY)) ) /* Prevent normal row buffer misses from pausing writes at odd times. */
+            || (params->UsePrecharge && state != SUBARRAY_CLOSED)   /* or, the subarray needs a precharge */
+            || (params->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED) /* or, write can't be paused. */
+            || (params->WritePausing && isWriting && !(req->flags & NVMainRequest::FLAG_PRIORITY)) ) /* Prevent normal row buffer misses from pausing writes at odd times. */
         {
             rv = false;
             if( reason ) 
@@ -1781,7 +1781,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
         if( nextRead > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
             || state != SUBARRAY_OPEN  /* or, the subarray is not active */
             || opRow != openRow        /* or, the target row is not the open row */
-            || ( p->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED ) ) /* or, write can't be paused. */
+            || ( params->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED ) ) /* or, write can't be paused. */
         {
             rv = false;
             if( reason ) 
@@ -1794,7 +1794,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
         if( nextRead > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
             || state != SUBARRAY_OPEN  /* or, the subarray is not active */
             || opRow != openRow        /* or, the target row is not the open row */
-            || ( p->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED ) ) /* or, write can't be paused. */
+            || ( params->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED ) ) /* or, write can't be paused. */
         {
             rv = false;
             if( reason ) 
@@ -1842,7 +1842,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     else if( req->type == REFRESH )
     {
         if( nextActivate > ( GetEventQueue()->GetCurrentCycle() ) /* if it is too early to refresh */ 
-            || (state != SUBARRAY_CLOSED && p->UsePrecharge) ) /* or, the subarray is not idle */
+            || (state != SUBARRAY_CLOSED && params->UsePrecharge) ) /* or, the subarray is not idle */
         {
             rv = false;
             if( reason )
@@ -1974,13 +1974,13 @@ bool SubArray::RequestComplete( NVMainRequest *req )
 
                 /* insert the implicit precharge */
                 GetEventQueue( )->InsertEvent( EventResponse, this, req, 
-                    GetEventQueue()->GetCurrentCycle() + p->tRP );
+                    GetEventQueue()->GetCurrentCycle() + params->tRP );
                 break;
             case PRECHARGE:
             case PRECHARGE_ALL:
                 /* close the subarray, increment the statistic number */
                 state = SUBARRAY_CLOSED;
-                openRow = p->ROWS;
+                openRow = params->ROWS;
                 precharges++;
                 delete req;
                 break;
@@ -1992,10 +1992,10 @@ bool SubArray::RequestComplete( NVMainRequest *req )
                  * be some form of buffered output, which would presumably
                  * hold the previously sensed data after a refresh command.
                  */
-                if( p->UsePrecharge )
+                if( params->UsePrecharge )
                 {
                     state = SUBARRAY_CLOSED;
-                    openRow = p->ROWS;
+                    openRow = params->ROWS;
                 }
                 else
                 {
@@ -2048,8 +2048,8 @@ ncycle_t SubArray::UpdateEndurance( NVMainRequest *request )
             bool hardError;
             ncycles_t extraLatency;
 
-            wordSize = p->BusWidth;
-            wordSize *= p->tBURST * p->RATE;
+            wordSize = params->BusWidth;
+            wordSize *= params->tBURST * params->RATE;
             wordSize /= 8;
 
             if( request->oldData.IsValid( ) )

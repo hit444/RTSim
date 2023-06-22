@@ -105,7 +105,7 @@ uint64_t CacheBank::DefaultDecoder( NVMAddress &addr )
     return addr.GetCol() % numSets;
 }
 
-void CacheBank::SetConfig(Config* conf, bool createChildren)
+void CacheBank::SetConfig(Config*, bool)
 {
     
 }

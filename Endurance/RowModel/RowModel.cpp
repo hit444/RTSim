@@ -60,7 +60,7 @@ void RowModel::SetConfig( Config *conf, bool createChildren )
     params->SetParams( conf );
     SetParams( params );
 
-    SetGranularity( p->COLS * 8 );
+    SetGranularity( params->COLS * 8 );
 
     EnduranceModel::SetConfig( conf, createChildren );
 }

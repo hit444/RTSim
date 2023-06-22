@@ -61,7 +61,7 @@ void WordModel::SetConfig( Config *config, bool createChildren )
     params->SetParams( config );
     SetParams( params );
 
-    SetGranularity( p->BusWidth * 8 );
+    SetGranularity( params->BusWidth * 8 );
 
     EnduranceModel::SetConfig( config, createChildren );
 }
@@ -79,11 +79,11 @@ ncycles_t WordModel::Read( NVMainRequest *request )
     uint64_t wordSize;
     uint64_t partitionCount;
 
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
-    rowSize = p->COLS * wordSize;
+    rowSize = params->COLS * wordSize;
 
     /*
      *  Think of each row being partitioned into 64-bit divisions (or
@@ -131,11 +131,11 @@ ncycles_t WordModel::Write( NVMainRequest *request, NVMDataBlock& /*oldData*/ )
     uint64_t wordSize;
     uint64_t partitionCount;
 
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
-    rowSize = p->COLS * wordSize;
+    rowSize = params->COLS * wordSize;
 
     /*
      *  Think of each row being partitioned into 64-bit divisions (or

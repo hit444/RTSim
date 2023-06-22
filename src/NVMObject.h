@@ -232,7 +232,7 @@ class NVMObject : public Configurable
     NVMObject_hook *parent;
     AddressTranslator *decoder;
     Stats *stats;
-    Params *p;
+    Params *params;
     std::string statName;
     std::vector<NVMObject_hook *> children;
     std::vector<NVMObject *> *hooks;

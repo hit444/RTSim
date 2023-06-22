@@ -83,12 +83,12 @@ ncycles_t ByteModel::Read( NVMainRequest *request )
      * wordSize is the size of a word written to memory, usually a cacheline. 
      * This size is in bytes 
      */
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
     /* Size of a row in bytes */
-    rowSize = p->COLS * wordSize;
+    rowSize = params->COLS * wordSize;
 
     /* Check each byte to see if it was modified */
     for( int i = (int)wordSize - 1; i >= 0; --i )
@@ -146,12 +146,12 @@ ncycles_t ByteModel::Write( NVMainRequest *request, NVMDataBlock& oldData )
      * wordSize is the size of a word written to memory, usually a cacheline. 
      * This size is in bytes 
      */
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
     /* Size of a row in bytes */
-    rowSize = p->COLS * wordSize;
+    rowSize = params->COLS * wordSize;
 
     /* Check each byte to see if it was modified */
     for( int i = (int)wordSize - 1; i >= 0; --i )

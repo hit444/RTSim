@@ -191,18 +191,18 @@ bool CachedDDR3Bank::Activate( NVMainRequest *request )
     // TODO: Check if row is already activated? It's probably not since LRU is evicted..
     if( dirtyCount > 0 )
     {
-        activateTimer += p->tRCD;                  /* Time for extra activate */
-        activateTimer -= p->tAL;                   /* Act -> Write time. */
-        activateTimer += MAX( p->tBURST, p->tCCD ) /* Write time. */
+        activateTimer += params->tRCD;                  /* Time for extra activate */
+        activateTimer -= params->tAL;                   /* Act -> Write time. */
+        activateTimer += MAX( params->tBURST, params->tCCD ) /* Write time. */
                        * (dirtyCount - 1);
-        activateTimer += p->tAL + p->tCWD          /* Write + Write -> Precharge time. */
-                       + p->tBURST + p->tWR;
-        activateTimer += (p->UsePrecharge          /* Precharge time. */
-                          ? p->tRP : 0);
+        activateTimer += params->tAL + params->tCWD          /* Write + Write -> Precharge time. */
+                       + params->tBURST + params->tWR;
+        activateTimer += (params->UsePrecharge          /* Precharge time. */
+                          ? params->tRP : 0);
     }
 
-    activateTimer += p->tRCD;                       /* The activate issued to this method. */
-    activateTimer += rowBufferSize * p->tCCD;       /* The time to read the selected row region. */
+    activateTimer += params->tRCD;                       /* The activate issued to this method. */
+    activateTimer += rowBufferSize * params->tCCD;       /* The time to read the selected row region. */
 
     /* 
      * Update timing constraints.
@@ -210,11 +210,11 @@ bool CachedDDR3Bank::Activate( NVMainRequest *request )
      * Assume we can write immediately after activate, and can read after one burst (Assumes 
      * trigger request is prioritized...) 
      */
-    nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + activateTimer - p->tAL - rowBufferSize * p->tCCD + p->tCCD );
-    nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + activateTimer - p->tAL - rowBufferSize * p->tCCD );
+    nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + activateTimer - params->tAL - rowBufferSize * params->tCCD + params->tCCD );
+    nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + activateTimer - params->tAL - rowBufferSize * params->tCCD );
     /* Don't allow closing the row until the RDB is full. */
-    nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + MAX(activateTimer, p->tRAS) );
-    nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + MAX(activateTimer, p->tRAS) );
+    nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + MAX(activateTimer, params->tRAS) );
+    nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + MAX(activateTimer, params->tRAS) );
 
     /* Set the bank state. */
     ncounter_t activateRow, activateSubArray;
@@ -256,8 +256,8 @@ bool CachedDDR3Bank::Read( NVMainRequest *request )
             rv = true;
 
             /* Only update read and write based on RDB timings; other commands will bypass RDB. */
-            nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tRDB ) );
-            nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tRDB ) + p->tRTRS );
+            nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( params->tBURST, params->tRDB ) );
+            nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( params->tBURST, params->tRDB ) + params->tRTRS );
 
             /* Assume the data is placed on the bus immediately after the command. */
             NVMainRequest *busReq = new NVMainRequest( );
@@ -270,7 +270,7 @@ bool CachedDDR3Bank::Read( NVMainRequest *request )
 
             /* Notify owner of read completion as well */
             GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-                    GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tRDB ) );
+                    GetEventQueue()->GetCurrentCycle() + MAX( params->tBURST, params->tRDB ) );
 
             /* Swap the cached status back to normal. */
             request->type = (request->type == CACHED_READ ? READ : request->type);
@@ -321,8 +321,8 @@ bool CachedDDR3Bank::Write( NVMainRequest *request )
                 rv = true;
 
                 /* Only update read and write based on RDB timings; other commands will bypass RDB. */
-                nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tRDB ) + p->tRTRS );
-                nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tRDB ) );
+                nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( params->tBURST, params->tRDB ) + params->tRTRS );
+                nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( params->tBURST, params->tRDB ) );
 
                 /* Set this word to be dirty. */
                 cachedRowBuffer[bufferIdx]->dirty[request->address.GetCol( )] = true;
@@ -338,7 +338,7 @@ bool CachedDDR3Bank::Write( NVMainRequest *request )
 
                 /* Notify owner of read completion as well */
                 GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-                        GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tRDB ) );
+                        GetEventQueue()->GetCurrentCycle() + MAX( params->tBURST, params->tRDB ) );
 
                 /* Swap the cached status back to normal. */
                 request->type = (request->type == CACHED_WRITE ? WRITE : request->type);

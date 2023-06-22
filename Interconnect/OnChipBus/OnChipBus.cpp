@@ -62,7 +62,7 @@ void OnChipBus::SetConfig( Config *c, bool createChildren )
     conf = c;
     configSet = true;
 
-    numRanks = p->RANKS;
+    numRanks = params->RANKS;
 
     if( createChildren )
     {

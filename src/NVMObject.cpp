@@ -616,12 +616,12 @@ void NVMObject::RegisterStats( )
 
 void NVMObject::SetParams( Params *params )
 {
-    p = params;
+    params = params;
 }
 
 Params *NVMObject::GetParams( )
 {
-    return p;
+    return params;
 }
 
 void NVMObject::StatName( std::string name )

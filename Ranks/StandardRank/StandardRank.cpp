@@ -117,10 +117,10 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
     params->SetParams( c );
     SetParams( params );
 
-    deviceWidth = p->DeviceWidth;
-    busWidth = p->BusWidth;
+    deviceWidth = params->DeviceWidth;
+    busWidth = params->BusWidth;
 
-    banksPerRefresh = p->BanksPerRefresh;
+    banksPerRefresh = params->BanksPerRefresh;
 
     if( conf->GetValue( "RAW" ) == -1 )
     {
@@ -129,7 +129,7 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
         rawNum = 4;
     }
     else
-        rawNum = p->RAW;
+        rawNum = params->RAW;
 
     assert( rawNum != 0 );
 
@@ -141,7 +141,7 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
         deviceCount++;
     }
 
-    bankCount = p->BANKS;
+    bankCount = params->BANKS;
 
     if( createChildren )
     {
@@ -186,11 +186,11 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
         lastActivate[i] = 0;
 
     /* We'll say you can't do anything until the command has time to issue on the bus. */
-    nextRead = p->tCMD;
-    nextWrite = p->tCMD;
-    nextClone = p->tCMD;
-    nextActivate = p->tCMD;
-    nextPrecharge = p->tCMD;
+    nextRead = params->tCMD;
+    nextWrite = params->tCMD;
+    nextClone = params->tCMD;
+    nextActivate = params->tCMD;
+    nextPrecharge = params->tCMD;
 
     fawWaits = 0;
     rrdWaits = 0;
@@ -203,7 +203,7 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
 
 void StandardRank::RegisterStats( )
 {
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         AddUnitStat(totalEnergy, "mA*t");
         AddUnitStat(backgroundEnergy, "mA*t");
@@ -280,7 +280,7 @@ bool StandardRank::Activate( NVMainRequest *request )
      *  power consumption.
      */
     if( nextActivate <= GetEventQueue()->GetCurrentCycle() 
-        && lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW 
+        && lastActivate[( RAWindex + 1 ) % rawNum] + params->tRAW 
             <= GetEventQueue( )->GetCurrentCycle( ) )
     {
         /* issue ACTIVATE to target bank */
@@ -293,7 +293,7 @@ bool StandardRank::Activate( NVMainRequest *request )
         RAWindex = (RAWindex + 1) % rawNum;
         lastActivate[RAWindex] = GetEventQueue()->GetCurrentCycle();
         nextActivate = MAX( nextActivate, 
-                            GetEventQueue()->GetCurrentCycle() + p->tRRDR + p->tSH );
+                            GetEventQueue()->GetCurrentCycle() + params->tRRDR + params->tSH );
     }
     else
     {
@@ -338,12 +338,12 @@ bool StandardRank::Read( NVMainRequest *request )
     /* Even though the command may be READ_PRECHARGE, it still works */
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                    + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+                    + MAX( params->tBURST, params->tCCD ) * request->burstCount );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                     + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                     + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
+                     + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                     + params->tCAS + params->tBURST + params->tRTRS - params->tCWD ); 
 
     /* if it has implicit precharge, insert the precharge to close the rank */ 
     if( request->type == READ_PRECHARGE )
@@ -353,8 +353,8 @@ bool StandardRank::Read( NVMainRequest *request )
         dupPRE->owner = this;
 
         GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
-            MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-            + GetEventQueue( )->GetCurrentCycle( ) + p->tAL + p->tRTP );
+            MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+            + GetEventQueue( )->GetCurrentCycle( ) + params->tAL + params->tRTP );
     }
 
     if( success == false )
@@ -392,12 +392,12 @@ bool StandardRank::ReadClone( NVMainRequest *request )
     /* Even though the command may be READ_PRECHARGE, it still works */
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                    + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+                    + MAX( params->tBURST, params->tCCD ) * request->burstCount );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                     + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                     + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
+                     + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                     + params->tCAS + params->tBURST + params->tRTRS - params->tCWD ); 
 
     /* if it has implicit precharge, insert the precharge to close the rank */ 
     if( request->type == READ_PRECHARGE || request->type == PIMOP )
@@ -407,8 +407,8 @@ bool StandardRank::ReadClone( NVMainRequest *request )
         dupPRE->owner = this;
 
         GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
-            MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-            + GetEventQueue( )->GetCurrentCycle( ) + p->tAL + p->tRTP );
+            MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+            + GetEventQueue( )->GetCurrentCycle( ) + params->tAL + params->tRTP );
     }
 
     if( success == false )
@@ -466,12 +466,12 @@ bool StandardRank::WriteClone( NVMainRequest *request )
     /* Even though the command may be WRITE_PRECHARGE, it still works */
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                    + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                    + p->tCWD + p->tBURST + p->tWTR );
+                    + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                    + params->tCWD + params->tBURST + params->tWTR );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                     + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+                     + MAX( params->tBURST, params->tCCD ) * request->burstCount );
 
     /* if it has implicit precharge, insert the precharge to close the rank */ 
     if( request->type == WRITE_PRECHARGE || request->type == PIMOP)
@@ -482,8 +482,8 @@ bool StandardRank::WriteClone( NVMainRequest *request )
 
         GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
                         GetEventQueue( )->GetCurrentCycle( ) 
-                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                        + p->tAL + p->tCWD + p->tBURST + p->tWR );
+                        + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                        + params->tAL + params->tCWD + params->tBURST + params->tWR );
     }
 
     if( success == false )
@@ -522,12 +522,12 @@ bool StandardRank::Write( NVMainRequest *request )
     /* Even though the command may be WRITE_PRECHARGE, it still works */
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                    + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                    + p->tCWD + p->tBURST + p->tWTR );
+                    + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                    + params->tCWD + params->tBURST + params->tWTR );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                     + MAX( p->tBURST, p->tCCD ) * request->burstCount );
+                     + MAX( params->tBURST, params->tCCD ) * request->burstCount );
 
     /* if it has implicit precharge, insert the precharge to close the rank */ 
     if( request->type == WRITE_PRECHARGE )
@@ -538,8 +538,8 @@ bool StandardRank::Write( NVMainRequest *request )
 
         GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
                         GetEventQueue( )->GetCurrentCycle( ) 
-                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                        + p->tAL + p->tCWD + p->tBURST + p->tWR );
+                        + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                        + params->tAL + params->tCWD + params->tBURST + params->tWR );
     }
 
     if( success == false )
@@ -575,7 +575,7 @@ bool StandardRank::Precharge( NVMainRequest *request )
         state = STANDARDRANK_CLOSED;
 
     nextPrecharge = MAX( nextPrecharge, 
-                         GetEventQueue()->GetCurrentCycle() + p->tPPD );
+                         GetEventQueue()->GetCurrentCycle() + params->tPPD );
 
     if( success == false )
     {
@@ -642,7 +642,7 @@ bool StandardRank::PowerDown( NVMainRequest *request )
     }
 
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-            GetEventQueue()->GetCurrentCycle() + p->tPD );
+            GetEventQueue()->GetCurrentCycle() + params->tPD );
     
     return true;
 }
@@ -692,16 +692,16 @@ bool StandardRank::PowerUp( NVMainRequest *request )
     {
         case STANDARDRANK_PDA:
             state = STANDARDRANK_OPEN;
-            puTimer = p->tXP;
+            puTimer = params->tXP;
             break;
 
         case STANDARDRANK_PDPF:
-            puTimer = p->tXP;
+            puTimer = params->tXP;
             state = STANDARDRANK_CLOSED;
             break;
 
         case STANDARDRANK_PDPS:
-            puTimer = p->tXPDLL;
+            puTimer = params->tXPDLL;
             state = STANDARDRANK_CLOSED;
             break;
 
@@ -742,14 +742,14 @@ bool StandardRank::Refresh( NVMainRequest *request )
 
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-        GetEventQueue()->GetCurrentCycle() + p->tRFC );
+        GetEventQueue()->GetCurrentCycle() + params->tRFC );
 
     /*
      * simply treat the REFRESH as an ACTIVATE. For a finer refresh
      * granularity, the nextActivate does not block the other bank groups
      */
     nextActivate = MAX( nextActivate, GetEventQueue( )->GetCurrentCycle( ) 
-                                        + p->tRRDR );
+                                        + params->tRRDR );
     RAWindex = (RAWindex + 1) % rawNum;
     lastActivate[RAWindex] = GetEventQueue( )->GetCurrentCycle( );
 
@@ -763,7 +763,7 @@ ncycle_t StandardRank::NextIssuable( NVMainRequest *request )
 
     request->address.GetTranslatedAddress( NULL, NULL, &bank, NULL, NULL, NULL );
 
-    if( request->type == ACTIVATE || request->type == REFRESH ) nextCompare = MAX( nextActivate, lastActivate[(RAWindex+1)%rawNum] + p->tRAW );
+    if( request->type == ACTIVATE || request->type == REFRESH ) nextCompare = MAX( nextActivate, lastActivate[(RAWindex+1)%rawNum] + params->tRAW );
     else if( request->type == READ || request->type == READ_PRECHARGE ) nextCompare = nextRead;
     else if( request->type == PIMOP ) nextCompare = nextClone;
     else if( request->type == WRITE || request->type == WRITE_PRECHARGE ) nextCompare = nextWrite;
@@ -785,7 +785,7 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
     if( req->type == ACTIVATE )
     {
         if( nextActivate > GetEventQueue( )->GetCurrentCycle( ) 
-            || ( lastActivate[(RAWindex + 1) % rawNum] + p->tRAW ) 
+            || ( lastActivate[(RAWindex + 1) % rawNum] + params->tRAW ) 
                 > GetEventQueue()->GetCurrentCycle() )  
         {
             rv = false;
@@ -806,19 +806,19 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 actWaitTotal += nextActivate - GetEventQueue( )->GetCurrentCycle( );
             }
 
-            if( ( lastActivate[RAWindex] + p->tRRDR )
+            if( ( lastActivate[RAWindex] + params->tRRDR )
                     > GetEventQueue( )->GetCurrentCycle( ) ) 
             {
                 rrdWaits++;
                 rrdWaitTotal += ( lastActivate[RAWindex] + 
-                        p->tRRDR - (GetEventQueue()->GetCurrentCycle()) );
+                        params->tRRDR - (GetEventQueue()->GetCurrentCycle()) );
             }
-            if( ( lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW )
+            if( ( lastActivate[( RAWindex + 1 ) % rawNum] + params->tRAW )
                     > GetEventQueue( )->GetCurrentCycle( ) ) 
             {
                 fawWaits++;
                 fawWaitTotal += ( lastActivate[( RAWindex + 1 ) % rawNum] + 
-                    p->tRAW - GetEventQueue( )->GetCurrentCycle( ) );
+                    params->tRAW - GetEventQueue( )->GetCurrentCycle( ) );
             }
         }
     }
@@ -904,7 +904,7 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
     {
         /* firstly, check whether REFRESH can be issued to a rank */
         if( nextActivate > GetEventQueue()->GetCurrentCycle() 
-            || ( lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW 
+            || ( lastActivate[( RAWindex + 1 ) % rawNum] + params->tRAW 
                 > GetEventQueue( )->GetCurrentCycle( ) )  )
         {
             rv = false;
@@ -1015,18 +1015,18 @@ void StandardRank::Notify( NVMainRequest *request )
     if( op == READ || op == READ_PRECHARGE )
     {
         nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tBURST + p->tRTRS );
+                                    + params->tBURST + params->tRTRS );
 
         nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tCAS + p->tBURST + p->tRTRS - p->tCWD);
+                                    + params->tCAS + params->tBURST + params->tRTRS - params->tCWD);
     }
     else if( op == WRITE || op == WRITE_PRECHARGE )
     {
         nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tBURST + p->tOST );
+                                    + params->tBURST + params->tOST );
 
         nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle()
-                                    + p->tBURST + p->tCWD + p->tRTRS - p->tCAS );
+                                    + params->tBURST + params->tCWD + params->tRTRS - params->tCAS );
     }
 }
 
@@ -1071,54 +1071,54 @@ void StandardRank::Cycle( ncycle_t steps )
         /* active powerdown */
         case STANDARDRANK_PDA:
             fastExitActiveCycles += steps;
-            if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD3P * (double)steps ) * (double)deviceCount;  
+            if( params->EnergyModel == "current" )
+                backgroundEnergy += ( params->EIDD3P * (double)steps ) * (double)deviceCount;  
             else
-                backgroundEnergy += ( p->Epda * (double)steps );  
+                backgroundEnergy += ( params->Epda * (double)steps );  
             break;
 
         /* precharge powerdown fast exit */
         case STANDARDRANK_PDPF:
             fastExitPrechargeCycles += steps;
-            if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2P1 * (double)steps ) * (double)deviceCount;
+            if( params->EnergyModel == "current" )
+                backgroundEnergy += ( params->EIDD2P1 * (double)steps ) * (double)deviceCount;
             else 
-                backgroundEnergy += ( p->Epdpf * (double)steps );  
+                backgroundEnergy += ( params->Epdpf * (double)steps );  
             break;
 
         /* precharge powerdown slow exit */
         case STANDARDRANK_PDPS:
             slowExitCycles += steps;
-            if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2P0 * (double)steps ) * (double)deviceCount;  
+            if( params->EnergyModel == "current" )
+                backgroundEnergy += ( params->EIDD2P0 * (double)steps ) * (double)deviceCount;  
             else 
-                backgroundEnergy += ( p->Epdps * (double)steps );  
+                backgroundEnergy += ( params->Epdps * (double)steps );  
             break;
 
         /* active standby */
         case STANDARDRANK_REFRESHING:
         case STANDARDRANK_OPEN:
             activeCycles += steps;
-            if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD3N * (double)steps ) * (double)deviceCount;  
+            if( params->EnergyModel == "current" )
+                backgroundEnergy += ( params->EIDD3N * (double)steps ) * (double)deviceCount;  
             else
-                backgroundEnergy += ( p->Eactstdby * (double)steps );  
+                backgroundEnergy += ( params->Eactstdby * (double)steps );  
             break;
 
         /* precharge standby */
         case STANDARDRANK_CLOSED:
             standbyCycles += steps;
-            if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2N * (double)steps ) * (double)deviceCount;  
+            if( params->EnergyModel == "current" )
+                backgroundEnergy += ( params->EIDD2N * (double)steps ) * (double)deviceCount;  
             else
-                backgroundEnergy += ( p->Eprestdby * (double)steps );  
+                backgroundEnergy += ( params->Eprestdby * (double)steps );  
             break;
 
         default:
-            if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2N * (double)steps ) * (double)deviceCount;  
+            if( params->EnergyModel == "current" )
+                backgroundEnergy += ( params->EIDD2N * (double)steps ) * (double)deviceCount;  
             else
-                backgroundEnergy += ( p->Eprestdby * (double)steps );  
+                backgroundEnergy += ( params->Eprestdby * (double)steps );  
             break;
     }
 }
@@ -1154,25 +1154,25 @@ void StandardRank::CalculateStats( )
     /* Get simulation time in nanoseconds (ns). Since energy is in nJ, energy / ns = W */
     double simulationTime = 1.0;
     
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         simulationTime = GetEventQueue()->GetCurrentCycle() - lastReset;
     }
     else
     {
         simulationTime = static_cast<double>(GetEventQueue()->GetCurrentCycle() - lastReset) 
-                       * (1000.0 / static_cast<double>(p->CLK));
+                       * (1000.0 / static_cast<double>(params->CLK));
     }
 
     if( simulationTime != 0 )
     {
         /* power in W */
-        if( p->EnergyModel == "current" )
+        if( params->EnergyModel == "current" )
         {
-            backgroundPower = ( backgroundEnergy / (double)deviceCount * p->Voltage ) / (double)simulationTime / 1000.0; 
-            activatePower = ( activateEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
-            burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
-            refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+            backgroundPower = ( backgroundEnergy / (double)deviceCount * params->Voltage ) / (double)simulationTime / 1000.0; 
+            activatePower = ( activateEnergy * params->Voltage ) / (double)simulationTime / 1000.0; 
+            burstPower = ( burstEnergy * params->Voltage ) / (double)simulationTime / 1000.0; 
+            refreshPower = ( refreshEnergy * params->Voltage ) / (double)simulationTime / 1000.0; 
         }
         else
         {
@@ -1184,7 +1184,7 @@ void StandardRank::CalculateStats( )
     }
 
     /* Current mode is measured on a per-device basis. */
-    if( p->EnergyModel == "current" )
+    if( params->EnergyModel == "current" )
     {
         /* energy breakdown. device is in lockstep within a rank */
         activateEnergy *= (double)deviceCount;

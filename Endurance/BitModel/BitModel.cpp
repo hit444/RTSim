@@ -79,11 +79,11 @@ ncycles_t BitModel::Read( NVMainRequest *request )
     uint64_t wordSize;
     uint64_t partitionCount;
 
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
-    rowSize = p->COLS * wordSize; 
+    rowSize = params->COLS * wordSize; 
     
     /* Check each bit to see if it is dead */
     for( uint64_t i = 0; i < wordSize; ++i )
@@ -139,11 +139,11 @@ ncycles_t BitModel::Write( NVMainRequest *request, NVMDataBlock& oldData )
     uint64_t wordSize;
     uint64_t partitionCount;
 
-    wordSize = p->BusWidth;
-    wordSize *= p->tBURST * p->RATE;
+    wordSize = params->BusWidth;
+    wordSize *= params->tBURST * params->RATE;
     wordSize /= 8;
 
-    rowSize = p->COLS * wordSize; 
+    rowSize = params->COLS * wordSize; 
 
     /* Check each byte to see if it was modified */
     for( uint64_t i = 0; i < wordSize; ++i )
