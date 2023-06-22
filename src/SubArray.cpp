@@ -166,9 +166,8 @@ void SubArray::SetConfig( Config *c, bool createChildren )
 {
     conf = c;
 
-    Params *params = new Params( );
+    params = new Params( );
     params->SetParams( c );
-    SetParams( params );
 
     if( params->MemIsRTM )
     {
@@ -740,55 +739,221 @@ bool SubArray::Clone( NVMainRequest *request )
 {   
     *debugStream << "Subarray: Performing RowClone for request " << request->arrivalCycle << " of type " << request->type << '\n';
 
-    bool readReturn = ReadClone( request );
-    if(!readReturn)
+    uint64_t DBC, domain;
+    request->address.GetTranslatedAddress( &DBC, &domain, NULL, NULL, NULL, NULL );
+
+    /* Check if we need to cancel or pause a write to service this request. */
+    CheckWritePausing( );
+
+    // Fault checking
+    if( nextRead > GetEventQueue()->GetCurrentCycle() )
     {
-        *debugStream <<"Subarray: RowClone read failed!\n";
+        std::cerr << "NVMain Error - Subarray::Clone: Subarray violates READ timing constraint!"
+            << std::endl;
+        return false;
+    }
+    if( state != SUBARRAY_OPEN )
+    {
+        std::cerr << "NVMain Error - Subarray::Clone: try to read a subarray that is not active!"
+            << std::endl;
+        return false;
+    }
+    if(DBC != openRow )
+    {
+        std::cerr << "NVMain Error - Subarray::Clone: try to RowClone a row that is not opened in a subarray!"
+            << std::endl;
         return false;
     }
 
-    bool writeReturn = WriteClone( request );
-    if(!writeReturn)
+    // TODO make simulation do RowClone instead of write
+    if( conf->GetSimInterface( ) != NULL && endrModel != NULL )
     {
-        *debugStream <<"Subarray: RowClone write failed!\n";
-        return false;
+        /*
+         *  In a trace-based simulation, or a live simulation where simulation is
+         *  started in the middle of execution, some data being read maybe have never
+         *  been written to memory. In this case, we will store the value, since the
+         *  data is always correct from either the simulator or the value in the trace,
+         *  which corresponds to the actual value that was read. 
+         *
+         *  Since the read data is already in the request, we don't actually need to
+         *  copy it there.
+         */
+        if( !conf->GetSimInterface( )->GetDataAtAddress( 
+                    request->address.GetPhysicalAddress( ), NULL ) )
+        {
+            conf->GetSimInterface( )->SetDataAtAddress( 
+                    request->address.GetPhysicalAddress( ), request->data );
+        }
     }
+
+    reads++;
+    dataCycles += params->tBURST;
+    
+    ncycle_t writeTimer;
+    ncycle_t encLat = 0, endrLat = 0;
+    ncounter_t numUnchangedBits = 0;
+    
+    if( writeMode == WRITE_THROUGH )
+    {
+        encLat = (dataEncoder ? dataEncoder->Write( request ) : 0);
+        endrLat = UpdateEndurance( request );
+
+        /* Count the number of bits modified. */
+        if( !params->WriteAllBits )
+        {
+            uint8_t *bitCountData = new uint8_t[request->data.GetSize()];
+
+            for( uint64_t bitCountByte = 0; bitCountByte < request->data.GetSize(); bitCountByte++ )
+            {
+                bitCountData[bitCountByte] = request->data.GetByte( bitCountByte )
+                                           ^ request->oldData.GetByte( bitCountByte );
+            }
+
+            ncounter_t bitCountWords = request->data.GetSize()/4;
+
+            ncounter_t numChangedBits = CountBitsMLC1( 1, (uint32_t*)bitCountData, bitCountWords );
+
+            assert( request->data.GetSize()*8 >= numChangedBits );
+            numUnchangedBits = request->data.GetSize()*8 - numChangedBits;
+        }
+    }
+
+    /* Determine the write time. */
+    writeTimer = WriteCellData( request ); // Assume write-through.
+    if( request->flags & NVMainRequest::FLAG_PAUSED ) // This was paused, restart with remaining time
+    {
+        writeTimer = request->writeProgress;
+        request->flags &= ~NVMainRequest::FLAG_PAUSED; // unpause this
+    }
+
+    if( request->flags & NVMainRequest::FLAG_CANCELLED )
+    {
+        request->flags &= ~NVMainRequest::FLAG_CANCELLED; // restart this
+    }
+    if( writeMode == WRITE_BACK && writeCycle )
+    {
+        writeTimer = 0;
+
+        NVMainRequest *requestCopy = new NVMainRequest( );
+        *requestCopy = *request;
+        writeBackRequests.push_back( requestCopy );
+    }
+
+    /* Write canceling/pausing only for write-through memory */
+    if( writeMode == WRITE_THROUGH )
+        request->writeProgress = writeTimer;
+
+    /* Save the next* state incause we cancel a write. */
+    nextActivatePreWrite = nextActivate;
+    nextPrechargePreWrite = nextPrecharge;
+    nextReadPreWrite = nextRead;
+    nextWritePreWrite = nextWrite;
+    nextPowerDownPreWrite = nextPowerDown;
+
+    if( writeMode == WRITE_THROUGH )
+    {
+        writeTimer += encLat + endrLat;
+
+        averageWriteTime = ((averageWriteTime * static_cast<double>(measuredWriteTimes)) + static_cast<double>(writeTimer)) 
+                         / (static_cast<double>(measuredWriteTimes) + 1.0);
+        measuredWriteTimes++;
+    }
+
+    /* Mark that a write is in progress in cause we want to pause/cancel. */
+    isWriting = true;
+    writeRequest = request;
+    // TODO: Should we disallow pausing during the data burst?
+    writeStart = GetEventQueue()->GetCurrentCycle();
+    writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
+    writeEventTime = GetEventQueue()->GetCurrentCycle() + params->tCWD 
+                     + MAX( params->tBURST, params->tCCD ) * request->burstCount + writeTimer;
+
+    // Update timing constraints
+    ncycles_t decLat = (dataEncoder ? dataEncoder->Read( request ) : 0);
+
+    nextPrecharge = MAX( nextPrecharge, 
+                            GetEventQueue()->GetCurrentCycle() 
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                            + params->tAL + params->tCWD + params->tBURST + writeTimer + params->tWR );
+
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                    + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                    + params->tCWD + params->tBURST + params->tWTR + writeTimer );
+
+    nextWrite = MAX( nextWrite, 
+                        GetEventQueue()->GetCurrentCycle() 
+                        + MAX( params->tBURST, params->tCCD ) * request->burstCount + writeTimer );
+
+    nextPowerDown = MAX( nextPowerDown, nextPrecharge );
+    nextPowerDown = MAX( nextPowerDown,
+                         GetEventQueue()->GetCurrentCycle()
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount  - 1)
+                            + params->tCAS + params->tAL + params->tBURST + 1 + decLat );
+
+    nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle()
+                                + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                                + params->tAL + params->tRTP + params->tRP + decLat );
+
+    nextPrecharge = MAX( nextPrecharge, nextActivate );
+    nextRead = MAX( nextRead, nextActivate );
+    nextWrite = MAX( nextWrite, nextActivate );
+
+    // Create events
+    NVMainRequest *preReq = new NVMainRequest( );
+    *preReq = *request;
+    preReq->owner = this;
+
+    /* insert the event to issue the implicit precharge */ 
+    GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
+                    GetEventQueue()->GetCurrentCycle() + params->tAL + params->tRTP + decLat
+                    + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1) );
+
+    NVMainRequest *busReq = new NVMainRequest( );
+    *busReq = *request;
+    busReq->type = BUS_WRITE;
+    busReq->owner = this;
+
+    GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
+            GetEventQueue()->GetCurrentCycle() + params->tCAS + decLat );
+
+    /* Issue a bus burst request when the burst starts. */
+    busReq = new NVMainRequest( );
+    *busReq = *request;
+    busReq->type = BUS_READ;
+    busReq->owner = this;
+
+    GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
+            GetEventQueue()->GetCurrentCycle() + params->tCWD );
+
+    /* Notify owner of RowClone completion as well */
+    GetEventQueue( )->InsertEvent( EventResponse, this, request, 
+            GetEventQueue()->GetCurrentCycle() + params->tCAS + params->tBURST + decLat );
+
+    /* Calculate energy. */
+    if( params->EnergyModel == "current" )
+    {
+        /* DRAM Model. */
+        subArrayEnergy += ( ( params->EIDD4W - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
+        burstEnergy += ( ( params->EIDD4W - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
+        subArrayEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
+        burstEnergy += ( ( params->EIDD4R - params->EIDD3N ) * (double)(params->tBURST) ) / (double)(params->BANKS);
+    }
+    else
+    {
+        /* Flat energy model. */
+        subArrayEnergy += params->Ewr - params->Ewrpb * numUnchangedBits;
+        burstEnergy += params->Ewr;
+        subArrayEnergy += params->Eopenrd;
+        burstEnergy += params->Eopenrd;
+    }
+
+    writeCycle = true;
+    writes++;
+    dataCycles += params->tBURST;
 
     return true;
-
-     // Do WriteClone() also here only
-    // If it completes all times, that is good. 
-    // If it completes only one time that is also good, 
-        // then try using the same variables as used by 
-        // Read() and Write(), i.e., nextRead, nextWrite, etc.
-    
-   
-    // // Get source and destination row addresses
-    // uint64_t srcRow = request->address;
-    // uint64_t dstRow = request->address2;
-    
-    // // Activate source row
-    // ActivateRow( srcRow, ACTIVATE );
-    
-    // // Read from source row
-    // ReadRow( srcRow, READ );
-    
-    // // Precharge source row
-    // PrechargeRow( srcRow, PRECHARGE );
-    
-    // // Activate destination row
-    // ActivateRow( dstRow, ACTIVATE );
-    
-    // // Write to destination row
-    // WriteRow( dstRow, WRITE );
-    
-    // // Precharge destination row
-    // PrechargeRow( dstRow, PRECHARGE );
-    
-    // Set state to IDLE
-    // state = IDLE;
-    
-    
 }
 
 
@@ -1924,9 +2089,7 @@ bool SubArray::IssueCommand( NVMainRequest *req )
 
 bool SubArray::RequestComplete( NVMainRequest *req )
 {
-    *debugStream << "Subarray: Completing req " << req->arrivalCycle << 
-            " of type " << req->type << 
-            " at address 0x" << std::hex << req->address.GetPhysicalAddress() << '\n';
+    *debugStream << "Subarray: Completing " << req << '\n';
 
     if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
@@ -1955,7 +2118,6 @@ bool SubArray::RequestComplete( NVMainRequest *req )
 
     if( req->owner == this )
     {
-        *debugStream << "Subarray: This subarray owns this request\n";
         switch( req->type )
         {
             /* may implement more functions in the future */
@@ -2016,9 +2178,6 @@ bool SubArray::RequestComplete( NVMainRequest *req )
                 delete req;
                 break;
         }
-
-        *debugStream << "SubArray: Complete request at 0x" << std::hex << req << '\n';
-
         return true;
     }
     else

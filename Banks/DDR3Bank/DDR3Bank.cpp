@@ -133,9 +133,8 @@ void DDR3Bank::SetConfig( Config *config, bool createChildren )
     if( config->KeyExists( "MATWidth" ) )
         MATWidth = static_cast<ncounter_t>( config->GetValue( "MATWidth" ) );
 
-    Params *params = new Params( );
+    params = new Params( );
     params->SetParams( config );
-    SetParams( params );
 
     MATHeight = params->MATHeight;
     subArrayNum = params->ROWS / MATHeight;
@@ -496,19 +495,10 @@ bool DDR3Bank::ReadClone( NVMainRequest *request )
     request->address.GetTranslatedAddress( &readRow, NULL, NULL, NULL, NULL, &readSubArray );
 
     /* Update timing constraints */
-    if( request->type == READ_PRECHARGE || request->type == PIMOP )
-    {
-        nextPowerDown = MAX( nextPowerDown, 
-                             GetEventQueue()->GetCurrentCycle() 
-                                 + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
-                                 + params->tAL + params->tRTP + params->tRP );
-    }
-    else
-    {
-        nextPowerDown = MAX( nextPowerDown, 
-                             MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
-                             + GetEventQueue()->GetCurrentCycle() + params->tRDPDEN );
-    }
+    nextPowerDown = MAX(nextPowerDown, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                            + params->tAL + params->tRTP + params->tRP );
 
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
@@ -519,34 +509,14 @@ bool DDR3Bank::ReadClone( NVMainRequest *request )
                          + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
                          + params->tCAS + params->tBURST + params->tRTRS - params->tCWD );
 
-    /* issue READ/READ_RECHARGE to the target subarray */
+    /* issue PIMOP to the target subarray */
     bool success = GetChild( request )->IssueCommand( request );
 
     if( success )
     {
-        if( request->type == READ_PRECHARGE )
-        {
-            precharges++;
-
-            std::deque<ncounter_t>::iterator it;
-            for( it = activeSubArrayQueue.begin(); 
-                    it != activeSubArrayQueue.end(); ++it )
-            {
-                if( (*it) == readSubArray )
-                {
-                    /* delete the item in the active subarray list */
-                    activeSubArrayQueue.erase( it );
-                    break;
-                }
-            }
-
-            if( activeSubArrayQueue.empty() )
-                state = DDR3BANK_CLOSED;
-        } // if( request->type == READ_PRECHARGE )
-
         dataCycles += params->tBURST;
         reads++;
-    } // if( succsss )
+    }
     else
     {
         std::cerr << "NVMain Error: Bank " << bankId << " failed to "
@@ -559,23 +529,78 @@ bool DDR3Bank::ReadClone( NVMainRequest *request )
 
 bool DDR3Bank::Clone( NVMainRequest *request )
 {
-    *debugStream << "DDR3Bank: Performing RowClone for request " << request->arrivalCycle << " of type " << request->type << '\n';
+    *debugStream << "DDR3Bank: Performing RowClone for " << request << '\n';
     
-    bool readReturn = ReadClone( request );
-    if(!readReturn)
+    /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
+    /* sanity check */
+    if( nextRead > GetEventQueue()->GetCurrentCycle() )
     {
-        *debugStream << "DDR3Bank: Read failed!\n";
+        std::cerr << "NVMain Error: Bank violates READ timing constraint!"
+            << std::endl;
+        return false;
+    }
+    if( nextWrite > GetEventQueue()->GetCurrentCycle() )
+    {
+        std::cerr << "NVMain Error: Bank violates WRITE timing constraint!"
+            << std::endl;
+        return false;
+    }
+    else if( state != DDR3BANK_OPEN )
+    {
+        std::cerr << "NVMain Error: try to read a bank that is not active!"
+            << std::endl;
         return false;
     }
 
-    bool writeReturn = WriteClone( request );
-    if(!writeReturn)
+    uint64_t cloneRow, cloneSubArray;
+    request->address.GetTranslatedAddress( &cloneRow, NULL, NULL, NULL, NULL, &cloneSubArray );
+
+    /* Update timing constraints */
+    // TODO which constraints are correct???
+    nextPowerDown = MAX(nextPowerDown, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                            + params->tAL + params->tRTP + params->tRP );
+
+    nextPowerDown = MAX( nextPowerDown, 
+                             MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                             + GetEventQueue()->GetCurrentCycle() + params->tWRPDEN );
+
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                        + MAX( params->tBURST, params->tCCD ) * request->burstCount );
+
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                    + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                    + params->tCWD + params->tBURST + params->tWTR );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle()
+                         + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                         + params->tCAS + params->tBURST + params->tRTRS - params->tCWD );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                     + MAX( params->tBURST, params->tCCD ) * request->burstCount );
+
+    /* issue PIMOP to the target subarray */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    if( success )
     {
-        *debugStream << "DDR3Bank: Write failed!\n";
-        return false;
+        dataCycles += params->tBURST;
+        reads++;
+        writeCycle = true;
+        writes++;
+    }
+    else
+    {
+        std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+            << "preform RowClone in the subarray " << cloneSubArray << std::endl;
     }
 
-    return true;
+    return success;
 }
 
 

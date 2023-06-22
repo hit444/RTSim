@@ -57,9 +57,8 @@ OffChipBus::~OffChipBus( )
 
 void OffChipBus::SetConfig( Config *c, bool createChildren )
 {
-    Params *params = new Params( );
+    params = new Params( );
     params->SetParams( c );
-    SetParams( params );
 
     conf = c;
     configSet = true;

@@ -113,9 +113,8 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
     TranslationMethod *method;
     int channels, ranks, banks, rows, cols, subarrays;
 
-    Params *params = new Params( );
+    params = new Params( );
     params->SetParams( conf );
-    SetParams( params );
 
     StatName( memoryName );
 

@@ -113,9 +113,8 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
 {
     conf = c;
 
-    Params *params = new Params( );
+    params = new Params( );
     params->SetParams( c );
-    SetParams( params );
 
     deviceWidth = params->DeviceWidth;
     busWidth = params->BusWidth;
@@ -423,21 +422,75 @@ bool StandardRank::ReadClone( NVMainRequest *request )
 
 bool StandardRank::Clone( NVMainRequest *request )
 {
-    bool readReturn = ReadClone( request );
-    if(!readReturn)
+    uint64_t readBank;
+    request->address.GetTranslatedAddress( NULL, NULL, &readBank, NULL, NULL, NULL );
+    uint64_t writeBank;
+    request->address.GetTranslatedAddress( NULL, NULL, &writeBank, NULL, NULL, NULL );
+
+    // Fault checking
+    if( writeBank >= bankCount )
     {
-        std::cout<<"Read failed in Standard Rank"<<std::endl;
+        std::cerr << "NVMain Error: Attempted to write non-existant bank: " 
+            << writeBank << "!" << std::endl;
+        return false;
+    }
+    if( readBank >= bankCount )
+    {
+        std::cerr << "NVMain Error: Rank attempted to read non-existant bank: " 
+            << readBank << "!" << std::endl;
+        return false;
+    }
+    if( nextRead > GetEventQueue()->GetCurrentCycle() )
+    {
+        std::cerr << "NVMain Error: Rank Read violates the timing constraint: " 
+            << readBank << "!" << std::endl;
         return false;
     }
 
-    bool writeReturn = WriteClone( request );
-    if(!writeReturn)
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                    + MAX( params->tBURST, params->tCCD ) * request->burstCount );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                     + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                     + params->tCAS + params->tBURST + params->tRTRS - params->tCWD ); 
+
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                    + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+                    + params->tCWD + params->tBURST + params->tWTR );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                     + MAX( params->tBURST, params->tCCD ) * request->burstCount );
+
+    /* issue PIMOP to target bank */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    // Create implicit PRECHARGE event (does this make sense?)
+    NVMainRequest* dupPRE = new NVMainRequest;
+        dupPRE->type = PRECHARGE;
+        dupPRE->owner = this;
+
+    GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
+        MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+        + GetEventQueue( )->GetCurrentCycle( ) + params->tAL + params->tRTP );
+
+    /* 
+    GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
+        GetEventQueue( )->GetCurrentCycle( ) 
+        + MAX( params->tBURST, params->tCCD ) * (request->burstCount - 1)
+        + params->tAL + params->tCWD + params->tBURST + params->tWR );
+    */
+
+    if( success == false )
     {
-        std::cout<<"Write failed"<<std::endl;
-        return false;
+        std::cerr << "NVMain Error: Rank PIMOP FAILED! Did you check IsIssuable?" 
+            << std::endl;
     }
-    
-    return true;
+
+    return success;
 }
 
 bool StandardRank::WriteClone( NVMainRequest *request )

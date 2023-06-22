@@ -224,6 +224,7 @@ class NVMainRequest
 
     void markCompleted()
     {
+        if (handled) throw std::logic_error("Request has already been completed!");
         handled = true;
     }
 
@@ -237,7 +238,7 @@ class NVMainRequest
 inline
 std::ostream& operator<<(std::ostream& os, NVMainRequest* req)
 {
-    return os << req->type << " for address 0x" << std::hex << req->address.GetPhysicalAddress();
+    return os << req->type << " for address 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec;
 }
 
 inline

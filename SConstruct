@@ -37,7 +37,7 @@ if build_type == None or build_type == "fast":
 elif build_type == "debug":
     env.Append(CCFLAGS='-O0')
     env.Append(CCFLAGS='-ggdb3')
-    #env.Append(CCFLAGS='-Werror')
+    env.Append(CCFLAGS='-Werror')
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-Woverloaded-virtual')

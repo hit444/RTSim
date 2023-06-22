@@ -350,9 +350,8 @@ void MemoryController::SetConfig( Config *conf, bool createChildren )
 {
     this->config = conf;
 
-    Params *params = new Params( );
+    params = new Params( );
     params->SetParams( conf );
-    SetParams( params );
     
     if( createChildren )
     {
