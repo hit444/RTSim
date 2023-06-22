@@ -1868,9 +1868,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
  */
 bool SubArray::IssueCommand( NVMainRequest *req )
 {
-    *debugStream << "SubArray: Received request " << req->arrivalCycle << 
-        " of type " << req->type <<
-        " at address 0x" << std::hex << req->address.GetPhysicalAddress() << '\n';
+    *debugStream << "SubArray: Received " << req << std::endl;
 
     bool rv = false;
 

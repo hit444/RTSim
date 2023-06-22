@@ -152,6 +152,9 @@ bool RTM::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
  */
 bool RTM::IssueCommand( NVMainRequest *req )
 {
+    *debugStream << "RTM: Received " << req->type << " request for address " <<
+        std::hex << req->address.GetPhysicalAddress() << std::endl;
+
     if( !IsIssuable( req ) )
     {
         return false;

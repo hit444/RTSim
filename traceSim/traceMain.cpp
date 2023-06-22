@@ -109,6 +109,7 @@ int TraceMain::RunTrace( int argc, char *argv[] )
     SetGlobalEventQueue( globalEventQueue );
     SetStats( stats );
     SetTagGenerator( tagGenerator );
+    SetDebugName("traceMain", config);
     std::ofstream statStream;
 
     /* Allow for overriding config parameter values for trace simulations from command line. */
@@ -233,6 +234,9 @@ int TraceMain::RunTrace( int argc, char *argv[] )
         if( !IgnoreData ) request->oldData = tl->GetOldData( );
         request->status = MEM_REQUEST_INCOMPLETE;
         request->owner = (NVMObject *)this;
+
+        *debugStream << "traceMain: Created request of type " << request->type << " at address 0x" <<
+                std::hex << request->address.GetPhysicalAddress() << std::endl;
         
         /* 
          * If you want to ignore the cycles used in the trace file, just set

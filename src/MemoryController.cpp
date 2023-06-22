@@ -921,6 +921,9 @@ NVMainRequest *MemoryController::MakeCachedRequest( NVMainRequest *triggerReques
     cachedRequest->type = (triggerRequest->type == READ ? CACHED_READ : CACHED_WRITE);
     cachedRequest->owner = this;
 
+    *debugStream << "MemoryController: Creating " << cachedRequest->type << " request at address 0x" << 
+        std::hex << triggerRequest->address.GetPhysicalAddress() << std::endl;
+
     return cachedRequest;
 }
 
@@ -932,6 +935,9 @@ NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequ
     activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     activateRequest->address = triggerRequest->address;
     activateRequest->owner = this;
+
+    *debugStream << "MemoryController: Creating ACTIVATE request at address 0x" << 
+        std::hex << triggerRequest->address.GetPhysicalAddress() << std::endl;
 
     return activateRequest;
 }
@@ -951,11 +957,17 @@ NVMainRequest *MemoryController::MakeActivateRequest( const ncounter_t row,
     activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     activateRequest->owner = this;
 
+    *debugStream << "MemoryController: Creating ACTIVATE request at address 0x" << 
+        std::hex << actAddr << std::endl;
+
     return activateRequest;
 }
 
 NVMainRequest *MemoryController::MakeShiftRequest( NVMainRequest *triggerRequest )
 {
+    *debugStream << "MemoryController: Creating SHIFT request at address 0x" << 
+        std::hex << triggerRequest->address.GetPhysicalAddress() << std::endl;
+
     NVMainRequest *shiftRequest = new NVMainRequest( );
 
     shiftRequest->type = SHIFT;
@@ -981,6 +993,9 @@ NVMainRequest *MemoryController::MakeShiftRequest( const ncounter_t row,
     shiftRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     shiftRequest->owner = this;
 
+    *debugStream << "MemoryController: Creating SHIFT request at address 0x" << 
+        std::hex << actAddr << std::endl;
+
     return shiftRequest;
 }
 
@@ -993,6 +1008,9 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
     prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeRequest->address = triggerRequest->address;
     prechargeRequest->owner = this;
+
+    *debugStream << "MemoryController: Creating PRECHARGE request at address 0x" << 
+        std::hex << triggerRequest->address.GetPhysicalAddress() << std::endl;
 
     return prechargeRequest;
 }
@@ -1012,6 +1030,9 @@ NVMainRequest *MemoryController::MakePrechargeRequest( const ncounter_t row,
     prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeRequest->owner = this;
 
+    *debugStream << "MemoryController: Creating PRECHARGE request at address 0x" << 
+        std::hex << preAddr << std::endl;
+
     return prechargeRequest;
 }
 
@@ -1023,6 +1044,9 @@ NVMainRequest *MemoryController::MakePrechargeAllRequest( NVMainRequest *trigger
     prechargeAllRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeAllRequest->address = triggerRequest->address;
     prechargeAllRequest->owner = this;
+
+    *debugStream << "MemoryController: Creating PRECHARGE_ALL request at address 0x" << 
+        std::hex << triggerRequest->address.GetPhysicalAddress() << std::endl;
 
     return prechargeAllRequest;
 }
@@ -1041,6 +1065,9 @@ NVMainRequest *MemoryController::MakePrechargeAllRequest( const ncounter_t row,
     prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     prechargeAllRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeAllRequest->owner = this;
+
+    *debugStream << "MemoryController: Creating PRECHARGE_ALL request at address 0x" << 
+        std::hex << preAddr << std::endl;
 
     return prechargeAllRequest;
 }
@@ -1072,6 +1099,9 @@ NVMainRequest *MemoryController::MakeRefreshRequest( const ncounter_t row,
     refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     refreshRequest->owner = this;
 
+    *debugStream << "MemoryController: Creating REFRESH request at address 0x" << 
+        std::hex << preAddr << std::endl;
+
     return refreshRequest;
 }
 
@@ -1087,6 +1117,9 @@ NVMainRequest *MemoryController::MakePowerdownRequest( OpType pdOp,
     powerdownRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     powerdownRequest->owner = this;
 
+    *debugStream << "MemoryController: Creating " << pdOp << " request at address 0x" << 
+        std::hex << pdAddr << std::endl;
+
     return powerdownRequest;
 }
 
@@ -1100,6 +1133,9 @@ NVMainRequest *MemoryController::MakePowerupRequest( const ncounter_t rank )
     powerupRequest->address.SetTranslatedAddress( 0, 0, 0, rank, id, 0 );
     powerupRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     powerupRequest->owner = this;
+
+    *debugStream << "MemoryController: Creating POWERUP request at address 0x" << 
+        std::hex << puAddr << std::endl;
 
     return powerupRequest;
 }

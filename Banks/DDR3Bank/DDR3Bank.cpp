@@ -1109,6 +1109,8 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
  */
 bool DDR3Bank::IssueCommand( NVMainRequest *req )
 {
+    *debugStream << "DDR3Bank: Received " << req << std::endl;
+
     bool rv = false;
 
     if( !IsIssuable( req ) )

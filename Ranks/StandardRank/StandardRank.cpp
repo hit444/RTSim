@@ -423,66 +423,19 @@ bool StandardRank::ReadClone( NVMainRequest *request )
 
 bool StandardRank::Clone( NVMainRequest *request )
 {
-    std::cout<<"Clone function called in Standard rank"<<std::endl;
-    
-    std::cout<<"First doing a read in Standard Rank"<<std::endl;
     bool readReturn = ReadClone( request );
     if(!readReturn)
     {
         std::cout<<"Read failed in Standard Rank"<<std::endl;
         return false;
     }
-    else
-    {
-        std::cout<<"Read done in Standard Rank"<<std::endl;
 
-        // std::cout<<"Now doing a write in Standard Rank"<<std::endl;
-
-        // bool writeReturn = Write( request );
-
-        // if(!writeReturn)
-        // {
-        //     std::cout<<"Write failed in Standard Rank"<<std::endl;
-        //     return false;
-        // }
-        // else
-        // {
-        //     std::cout<<"Write done in Standard Rank"<<std::endl;
-        // }
-    }
-
-    // // Create a new request with the data we just read
-    // NVMainRequest *writeRequest = new NVMainRequest( );
-    // *writeRequest = *request;
-    // writeRequest->type = WRITE;
-    // writeRequest->owner = this;
-    // writeRequest->data = request->data;
-    
-    // std::cout<<"Now doing a write"<<std::endl;
-    // bool writeReturn = Write( writeRequest );
-    // if(!writeReturn)
-    // {
-    //     std::cout<<"Write failed"<<std::endl;
-    //     return false;
-    // }
-    // else
-    // {
-    //     std::cout<<"Write done"<<std::endl;
-    // }
-
-    std::cout<<"Now doing a write in standard rank"<<std::endl;
     bool writeReturn = WriteClone( request );
     if(!writeReturn)
     {
         std::cout<<"Write failed"<<std::endl;
         return false;
     }
-    else
-    {
-        std::cout<<"Write done"<<std::endl;
-    }
-    
-    std::cout<<"Clone in Standard Rank done"<<std::endl;
     
     return true;
 }
@@ -982,6 +935,8 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
 
 bool StandardRank::IssueCommand( NVMainRequest *req )
 {
+    *debugStream << "StandardRank: Received " << req << std::endl;
+
     bool rv = false;
 
     if( !IsIssuable( req ) )
